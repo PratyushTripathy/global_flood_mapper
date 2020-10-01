@@ -12,5 +12,5 @@ The basic version of the tool allows the user to quickly create high-precision f
 The advanced version of the tool provides option to tweak a few parameters that influence the flood maps. Please read the details here.
 </ul>
 
-<br/>Following citation is recommended:
+<br/>Following citation is recommended:<br/>
 Tripathy, P. & Malladi, T. (2020). <em> A novel application for rapid flood mapping using Sentinel-1 SAR data and Google Earth Engine. </em> (manuscript in preparation)
