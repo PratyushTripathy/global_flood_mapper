@@ -13,4 +13,4 @@ The advanced version of the tool provides option to tweak a few parameters that 
 </ul>
 
 <br/>Following citation is recommended:<br/>
-<em> A novel application for rapid flood mapping using Sentinel-1 SAR data and Google Earth Engine. </em> (manuscript in preparation)
+<em> Tripathy, P. & Malladi, T. A novel application for rapid flood mapping using Sentinel-1 SAR data and Google Earth Engine. </em> (manuscript in preparation)
