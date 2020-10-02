@@ -4,10 +4,10 @@ This repository contains the updated link to the global flood mapper tool as des
 <br/>The GIF below shows the basic portal: <br/>
 ![](/media/portal.gif)
 
-## 1. Basic version - [link](https://amravati.users.earthengine.app/view/flood-mapper/)<br/>
+## Basic version - [link](https://amravati.users.earthengine.app/view/flood-mapper/)<br/>
 The basic version of the tool allows the user to quickly create high-precision flood maps by simply selecting the area of interest from the dropwown menu and selecting the dates for before and after floods. Please read the details here.<br/>
 
-## 2. Advanced version - for remote sensing professionals - [link](https://amravati.users.earthengine.app/view/flood-mapper)<br/>
+## Advanced version - for remote sensing professionals - [link](https://amravati.users.earthengine.app/view/flood-mapper)<br/>
 The advanced version of the tool provides option to tweak a few parameters that influence the flood maps. Please read the details here.
 
 Recommended citation:<br/>
