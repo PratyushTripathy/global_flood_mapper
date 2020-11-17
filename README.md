@@ -8,7 +8,7 @@ This repository contains the link to the global flood mapper tool as described i
 The basic version of the tool allows the user to quickly create high-precision flood maps by simply selecting the area of interest from the dropwown menu and selecting the dates for before and during floods. The flood map can be directly downloaded from the GEE app either in PNG or SHP format. Please read the details in the paper.<br/>
 
 ## Advanced version - [link](https://pratyush_tripathy.users.earthengine.app/view/global-flood-mapper-advanced)<br/>
-The advanced version of the tool provides option to tweak a few parameters that influence the flood map. It permits the user to change choose between ascending/descending pass, the ethreshold for Z value, water seasonality threshold, etc. Please read the details in the paper.
+The advanced version of the tool provides option to tweak a few parameters that influence the flood map. It permits the user to choose between ascending/descending pass, the threshold for Z value, water seasonality threshold, etc. Please read the details in the paper.
 
 Recommended citation:<br/>
-<em> Tripathy, P. & Malladi, T. A novel application for rapid flood mapping using Sentinel-1 SAR data and Google Earth Engine. </em> (working paper)
+<em> Tripathy, P. & Malladi, T. A novel application for rapid flood mapping using Sentinel-1 SAR data and Google Earth Engine. </em>
