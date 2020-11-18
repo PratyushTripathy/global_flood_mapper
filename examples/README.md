@@ -1,4 +1,4 @@
-# Following are a few examples of the Global Flood Mapper
+# Following are a few examples of the Global Flood Mapper portal
 
 ## 2020 Bihar, India<br/>
 Country: India<br/>
