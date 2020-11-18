@@ -1,4 +1,6 @@
-<h2> Steps to follow to generate the flood map: </h2><br/>
+<img src="../media/portalScreenshot.PNG" height="427" width="843">
+
+# Steps to follow to generate the flood map: <br/>
 1. Select the country and area from the drop-down menu highlighted in 1.<br/>
 2. Select a date range of about one-two months before the floods. The start date and the number of succeeding days (defaults to 60). This should be selected in the option highlighted in 2.<br/>
 3. With some rough idea about the flood dates, select a date range as highlighted in 3. This should be the minimum number of days required to cover the area.<br/>
