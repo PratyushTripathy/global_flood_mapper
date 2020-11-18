@@ -20,7 +20,7 @@ During flood date: 04 July 2019 + 10 days<br/>
 Country: Mozambique<br/>
 State: Sofala<br/>
 Pre flood date: 01 Jan 2019 + 60 days<br/>
-During flood date: 15 Mar 2019 + 9 days<br/>
+During flood date: 19 Mar 2019 + 1 day<br/>
 <img src="2019_Beira.png" height="455" width="700"><br/>
 <img src="../media/legend.png" height="55" width="730"><br/>
 
