@@ -1,4 +1,4 @@
-<img src="./media/Input.png" height="250" width="250">
+![](//media/basicPortalGif.gif)
 
 <h2> Steps to follow to generate the flood map: </h2><br/>
 1. Select the country and area from the drop-down menu highlighted in 1.<br/>
