@@ -1,7 +1,7 @@
 <h1> Global Flood Mapper </h1><br/>
 This repository contains the link to the global flood mapper tool as described in the article <em><strong>"A novel application for rapid flood mapping using Sentinel-1 SAR data and Google Earth Engine"</strong></em>.<br/>
 
-There are two versions of the tool, basic and advanced. Please read the usage instructions here [[link]](/instructions). A journal article with the detiled methods will be out soon.<br/>
+There are two versions of the tool, basic and advanced. Please read the usage instructions here [[link]](/instructions). A journal article with the detiled methods will be out soon. Please find a few examples here [[link]](/examples).<br/>
 
 <br/>The GIF below shows the basic portal: <br/>
 ![](/media/basicPortalGif.gif)
