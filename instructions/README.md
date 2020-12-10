@@ -1,7 +1,8 @@
-<img src="../media/gfm_screenshot.png" height="380" width="750">
-<img src="../media/gfm_advanced_screenshot.png" height="250" width="200">
-
 # Steps to follow to generate the flood map: <br/>
+
+<img src="../media/gfm_screenshot.png" height="380" width="750">
+<img src="../media/gfm_advanced_screenshot.png" height="150" width="200">
+
 1. Select the country and area from the drop-down menu highlighted in 1. Alternatively, the map extent can be used as the AOI by checking the checkbox. <br/>
 2. Select a date range of about one-two months before the floods. The start date and the number of succeeding days (defaults to 60). This should be selected in the option highlighted in 2.<br/>
 3. With some rough idea about the flood dates, select a date range as highlighted in 3. This should be the minimum number of days required to cover the area. The minimum number of scenes required to wholly cover an area should be determined by a test-and-trial approach, by trying out different values for the 'succeeding days' field.<br/>
