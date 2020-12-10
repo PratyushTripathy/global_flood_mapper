@@ -1,4 +1,4 @@
-# Steps to follow to generate the flood map: <br/>
+# Recommended steps to generate the flood map: <br/>
 
 <img src="../media/gfm_screenshot.png" height="380" width="750">
 
