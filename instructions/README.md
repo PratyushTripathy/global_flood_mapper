@@ -1,4 +1,5 @@
-<img src="../media/gfm_screenshot.png" height="380" width="750"> <img src="../media/gfm_advanced_screenshot.png" height="250" width="200">
+<img src="../media/gfm_screenshot.png" height="380" width="750">
+<img src="../media/gfm_advanced_screenshot.png" height="250" width="200">
 
 # Steps to follow to generate the flood map: <br/>
 1. Select the country and area from the drop-down menu highlighted in 1. Alternatively, the map extent can be used as the AOI by checking the checkbox. <br/>
