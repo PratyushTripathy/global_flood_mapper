@@ -13,5 +13,5 @@ Country: Viet Nam<br/>
 State: Thua Thien - Hue<br/>
 Pre flood date: 01 Aug 2020 + 60 days<br/>
 During flood date: 13 Oct 2020 + 1 day<br/>
-<img src="../media/expl/2020_Hue.png" height="417" width="700"><br/>
-<img src="../media/legend_base.png" height="115" width="730"><br/>
+<img src="../../media/expl/2020_Hue.png" height="417" width="700"><br/>
+<img src="../../media/legend_base.png" height="115" width="730"><br/>
