@@ -8,3 +8,6 @@
 1. Assam, India <br/>
 2. Beira, Mozambique <br/>
 3. Bahamas <br/>
+
+## Floods in the year 2018: [[link]](./2019)<br/>
+1. Kauai, Hawaii, USA <br/>
