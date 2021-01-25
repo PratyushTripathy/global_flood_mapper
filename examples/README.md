@@ -16,9 +16,9 @@
 1. Houston, Texas, USA <br/>
 2. Sylhet, Bangladesh <br/>
 
-## Floods in the year 2017: [[link]](./2016)<br/>
-1. 2016 Roscommon, Ireland<br/>
+## Floods in the year 2016: [[link]](./2016)<br/>
+1. Roscommon, Ireland<br/>
 
 ## Floods in the year 2015: [[link]](./2015)<br/>
-1. 2015 England, U.K. of Great Britain and North Ireland<br/>
+1. England, U.K. of Great Britain and North Ireland<br/>
 2. Anatoliki Makedonia Kai Thraki, Greece <br/>
