@@ -1,4 +1,4 @@
-# Following are a few examples of the Global Flood Mapper portal
+# Floods in the year 2018 mapped using Global Flood Mapper
 
 ## 2018 Hawaii, USA<br/>
 Country: United States of America<br/>

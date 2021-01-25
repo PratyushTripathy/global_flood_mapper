@@ -1,4 +1,4 @@
-# Following are a few examples of the Global Flood Mapper portal
+# Floods in the year 2019 mapped using Global Flood Mapper
 
 ## 2019 Assam, India<br/>
 Country: India<br/>
