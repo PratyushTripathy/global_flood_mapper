@@ -22,4 +22,4 @@
 1. If you see linear flood extent (like a proper line). It is most likely the edge of a SAR scene in the during-flood image. In such a case please try to select any other date near the first one. For e.g. the [Roscommon, Ireland 2016](../examples/2016) flood in the examples, a during-flood stretch of 09 to 11 Jan 2016 gave a linear feature, which I avoided by selecting 09 Jan 2016 as the during-flood date.<br/>
 
 <img src="../media/2016_Roscommon_Mistake.png" height="150" width="200">	<img src="../media/expl/2016_Roscommon.png" height="150" width="200"><br/>
-<img src="../../media/legend_base.png" height="65" width="410"><br/>
+<img src="../media/legend_base.png" height="65" width="410"><br/>
