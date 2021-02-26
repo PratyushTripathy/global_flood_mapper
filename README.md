@@ -14,3 +14,9 @@ The advanced version of the tool provides option to tweak a few parameters that 
 
 Recommended citation:<br/>
 <em> Tripathy, P. & Malladi, T. Global Flood Mapper: A novel Google Earth Engine application for rapid flood mapping using Sentinel-1 SAR. </em>
+
+**Affiliation**<br/>
+Geospatial Lab, Indian Institute for Human Settlements, Bengaluru - 560080, India<br/>
+
+**Funding**<br/>
+This work was completed with support from the PEAK Urban programme, funded by UKRI’s Global Challenge Research Fund, Grant Ref: ES/P011055/1
