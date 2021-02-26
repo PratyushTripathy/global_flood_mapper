@@ -12,7 +12,7 @@ The basic version of the tool allows the user to quickly create high-precision f
 ## Advanced version - [link](https://pratyush_tripathy.users.earthengine.app/view/global-flood-mapper-advanced)<br/>
 The advanced version of the tool provides option to tweak a few parameters that influence the flood map. It enables the user to choose between ascending/descending pass, the threshold for Z value, water seasonality threshold, the elevation and slope.
 
-Recommended citation:<br/>
+**Recommended citation:**<br/>
 <em> Tripathy, P. & Malladi, T. Global Flood Mapper: A novel Google Earth Engine application for rapid flood mapping using Sentinel-1 SAR. </em>
 
 **Affiliation**<br/>
