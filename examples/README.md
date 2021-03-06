@@ -6,6 +6,7 @@
 ## Floods in the year 2020: [[link]](./2020)<br/>
 1. Bihar, India <br/>
 2. Huế, Vietnam <br/>
+3. Cambodia <br/>
 
 ## Floods in the year 2019: [[link]](./2019)<br/>
 1. Assam, India <br/>
