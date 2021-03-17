@@ -13,7 +13,7 @@ The basic version of the tool allows the user to quickly create high-precision f
 The advanced version of the tool provides option to tweak a few parameters that influence the flood map. It enables the user to choose between ascending/descending pass, the threshold for Z value, water seasonality threshold, the elevation and slope.
 
 **Suggested citation:**<br/>
-Tripathy, P. and Malladi, T.: Global Flood Mapper: Democratising open EO resources for flood mapping, EGU General Assembly 2021, online, 19–30 Apr 2021, EGU21-16194, https://doi.org/10.5194/egusphere-egu21-16194, 2021.<br/>
+Tripathy, P. and Malladi, T. Global Flood Mapper: Democratising open EO resources for flood mapping, EGU General Assembly 2021, online, 19–30 Apr 2021, EGU21-16194, https://doi.org/10.5194/egusphere-egu21-16194, 2021.<br/>
 
 Tripathy, P. & Malladi, T. Global Flood Mapper: A novel Google Earth Engine application for rapid flood mapping using Sentinel-1 SAR.<br/>
 
