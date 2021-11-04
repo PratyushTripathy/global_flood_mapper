@@ -6,6 +6,8 @@ Please read the usage instructions here [[link]](/instructions). A journal artic
 <br/>The GIF below shows the basic portal: <br/>
 ![](/media/gfmPortalGif.gif)
 
+<strong>Note:</strong> If GFM does not load on your browser, please consider using Google Chrome.<br/>
+
 ## Access GFM here - [link](https://pratyush_tripathy.users.earthengine.app/view/global-flood-mapper-advanced)<br/>
 The tool allows the user to quickly create high-precision flood maps by simply selecting the area of interest from the dropwown menu and selecting the dates for before and during floods. The flood map can be directly downloaded from the GEE app either in PNG or SHP format. The advanced options panel of the tool provides option to tweak a few parameters that influence the flood map. It enables the user to choose between ascending/descending pass, the threshold for Z-value, water seasonality threshold, the elevation and slope.
 
