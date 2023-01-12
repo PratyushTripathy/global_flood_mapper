@@ -1,0 +1,1 @@
+## This repository contains the source code for the Global Flood Mapper too. Please cite the conference paper and the journal article if you use the tool or the script.
