@@ -26,3 +26,9 @@
 ## Floods in the year 2015: [[link]](./2015)<br/>
 1. England, U.K. of Great Britain and North Ireland <br/>
 2. Anatoliki Makedonia Kai Thraki, Greece <br/>
+
+# Bihar floods across time<br/>
+<img src="./BiharTemporal/Bihar_2017.png" height="455" width="650"><br/>
+<img src="./BiharTemporal/Bihar_2019.png" height="455" width="650"><br/>
+<img src="./BiharTemporal/Bihar_2020.png" height="455" width="650"><br/>
+<img src="./BiharTemporal/Bihar_Combined.png" height="500" width="1000"><br/>
