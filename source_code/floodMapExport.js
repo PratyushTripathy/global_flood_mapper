@@ -32,3 +32,32 @@ var getFloodShpUrl = function(floodLayer, value, radius, aoi, cellSize, filename
 }
 
 exports.getFloodShpUrl = getFloodShpUrl;
+
+
+// Define a function to smoothen the map and export the TIFF
+var getFloodTiffUrl = function(floodLayer, value, radius, aoi, cellSize, filename) {
+  // Define a boxcar or low-pass kernel.
+  var boxcar = ee.Kernel.square({
+    radius: radius, units: 'pixels', magnitude: 1
+  });
+  
+  // Smoothen and threshold the binary flood raster
+  var smooth_flood = floodLayer.eq(value).convolve(boxcar);
+  var smooth_flood_binary = smooth_flood.updateMask(smooth_flood.gt(0.5)).gt(0);
+
+  // Ensure the raster has the correct mask and bands for export
+  var flood_image = smooth_flood_binary.selfMask().rename('FloodMap');
+
+  // Generate the download URL for the GeoTIFF
+  var tiff_url = flood_image.getDownloadURL({
+    name: filename,
+    crs: 'EPSG:4326',
+    scale: cellSize,
+    region: aoi,
+    format: 'GeoTIFF'
+  });
+  
+  return tiff_url;
+}
+
+exports.getFloodTiffUrl = getFloodTiffUrl;
