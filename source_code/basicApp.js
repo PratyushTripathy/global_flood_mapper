@@ -11,6 +11,7 @@ var aoi = 0
 // Import all the scripts
 var aoi_filter = require('users/pratyush_tripathy/flood_mapper:aoiFilter');
 var mapFloods = require('users/pratyush_tripathy/flood_mapper:mapFloods');
+var zscore = require('users/pratyush_tripathy/flood_mapper:zScore');
 var zscorebasic = require('users/pratyush_tripathy/flood_mapper:zScoreBasic');
 var floodLegend = require('users/pratyush_tripathy/flood_mapper:floodLegend');
 var generateChart = require('users/pratyush_tripathy/flood_mapper:availabilityGraphStacked')
@@ -291,14 +292,69 @@ function addLayerSelector(mapToChange, defaultValue, position) {
       var shp_label = ui.Label('SHP link', {shown: false});
       var shp_download_button = ui.Button({
         label: 'SHP',
-        onClick: function(){
-          // Extract the link for the shapefile
-          var flood_image = rightMap.layers().get(2).getEeObject();
-          var vector_url = floodExport.getFloodShpUrl(flood_image, 3, 3, aoi, 100, 'FloodMap')
-          
-          shp_label.setUrl(vector_url);
-          shp_label.style().set({shown: true});
-        }})
+        onClick: function() {
+          if (!rightSubPanel1.widgets().contains(shpSmoothingSliderLabel)) {
+      
+            // Smoothing Radius Slider (affects both smoothing values)
+            var shpSmoothingSliderLabel = ui.Label('Smoothing Radius');
+            var shpSmoothingSlider = ui.Slider({
+              min: 1,
+              max: 10,
+              value: 3,
+              step: 1,
+              style: {width: '100%'},
+            });
+      
+            // Cell Size Slider (affects the cell size)
+            var shpCellSizeLabel = ui.Label('Cell Size');
+            var shpCellSizeSlider = ui.Slider({
+              min: 10,
+              max: 500,
+              value: 100,
+              step: 10,
+              style: {width: '100%'},
+            });
+      
+            // Confirm Button
+            var shpConfirmButton = ui.Button({
+              label: 'Confirm',
+              onClick: function() {
+                var smoothingValue = shpSmoothingSlider.getValue();
+                var cellSizeValue = shpCellSizeSlider.getValue();
+      
+                var flood_image = rightMap.layers().get(2).getEeObject();
+                var vector_url = floodExport.getFloodShpUrl(
+                  flood_image,
+                  smoothingValue,
+                  smoothingValue,
+                  aoi,
+                  cellSizeValue,
+                  'FloodMap'
+                );
+      
+                shp_label.setUrl(vector_url);
+                shp_label.style().set({shown: true});
+                
+                shpSmoothingSliderLabel.style().set({shown: false});
+                shpSmoothingSlider.style().set({shown: false});
+                shpCellSizeLabel.style().set({shown: false});
+                shpCellSizeSlider.style().set({shown: false});
+                shpConfirmButton.style().set({shown: false});
+
+              }
+            });
+      
+            // Add the sliders and confirm button to the existing right-hand panel
+            rightSubPanel1.add(shpSmoothingSliderLabel);
+            rightSubPanel1.add(shpSmoothingSlider);
+            rightSubPanel1.add(shpCellSizeLabel);
+            rightSubPanel1.add(shpCellSizeSlider);
+            rightSubPanel1.add(shpConfirmButton);
+          }
+        }
+      });
+
+
       
       // Add button and link to download flood PNG map
       var png_label = ui.Label('PNG link', {shown: false});
@@ -319,6 +375,73 @@ function addLayerSelector(mapToChange, defaultValue, position) {
           png_label.style().set({shown: true});
         }});
       
+      // Add button and link to download flood TIFF map
+      var tiff_label = ui.Label('TIFF link', {shown: false});
+      var tiff_download_button = ui.Button({
+        label: 'TIFF',
+        onClick: function() {
+          if (!rightSubPanel1.widgets().contains(smoothingSliderLabel)) {
+            
+            // Smoothing Radius Slider (affects both smoothing values)
+            var smoothingSliderLabel = ui.Label('Smoothing Radius');
+            var smoothingSlider = ui.Slider({
+              min: 1,
+              max: 10,
+              value: 3,
+              step: 1,
+              style: {width: '100%'},
+            });
+      
+            // Cell Size Slider (affects the cell size)
+            var cellSizeLabel = ui.Label('Cell Size');
+            var cellSizeSlider = ui.Slider({
+              min: 300,
+              max: 700,
+              value: 500,
+              step: 10,
+              style: {width: '100%'},
+            });
+      
+            // Confirm Button
+            var confirmButton = ui.Button({
+              label: 'Confirm',
+              onClick: function() {
+                var smoothingValue = smoothingSlider.getValue();
+                var cellSizeValue = cellSizeSlider.getValue();
+      
+                var flood_image = rightMap.layers().get(2).getEeObject();
+                var tiff_url = floodExport.getFloodTiffUrl(
+                  flood_image,
+                  smoothingValue,
+                  smoothingValue,
+                  aoi,
+                  cellSizeValue,
+                  'FloodMap'
+                );
+      
+                tiff_label.setUrl(tiff_url);
+                tiff_label.style().set({shown: true});
+                
+                smoothingSliderLabel.style().set({shown: false});
+                smoothingSlider.style().set({shown: false});
+                cellSizeLabel.style().set({shown: false});
+                cellSizeSlider.style().set({shown: false});
+                confirmButton.style().set({shown: false});
+              }
+            });
+      
+            // Add the sliders and confirm button to the existing right-hand panel
+            rightSubPanel1.add(smoothingSliderLabel);
+            rightSubPanel1.add(smoothingSlider);
+            rightSubPanel1.add(cellSizeLabel);
+            rightSubPanel1.add(cellSizeSlider);
+            rightSubPanel1.add(confirmButton);
+          }
+        }
+      });
+
+        
+      
       //controlPanel.add(extent_checkbox)
       controlPanel.add(
         ui.Label('Generate the download link using the buttons below. This should be done everytime the extent is changed.',
@@ -328,8 +451,10 @@ function addLayerSelector(mapToChange, defaultValue, position) {
       // Add download buttons and links to right panel
       rightSubPanel1.add(shp_download_button)
       rightSubPanel1.add(png_download_button)
+      rightSubPanel1.add(tiff_download_button)
       rightSubPanel2.add(shp_label)
       rightSubPanel2.add(png_label)
+      rightSubPanel2.add(tiff_label)
       controlPanel.add(rightSubPanel1)
       controlPanel.add(rightSubPanel2)
       
