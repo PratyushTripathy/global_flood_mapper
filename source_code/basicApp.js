@@ -9,13 +9,12 @@ A novel application for rapid flood mapping using Sentinel-1 SAR data and Google
 
 var aoi = 0
 // Import all the scripts
-var aoi_filter = require('users/pratyush_tripathy/flood_mapper:aoiFilter');
-var mapFloods = require('users/pratyush_tripathy/flood_mapper:mapFloods');
-var zscore = require('users/pratyush_tripathy/flood_mapper:zScore');
-var zscorebasic = require('users/pratyush_tripathy/flood_mapper:zScoreBasic');
-var floodLegend = require('users/pratyush_tripathy/flood_mapper:floodLegend');
-var generateChart = require('users/pratyush_tripathy/flood_mapper:availabilityGraphStacked')
-var floodExport = require('users/pratyush_tripathy/flood_mapper:floodMapExport');
+var aoi_filter = require('users/aarnavagrawal/GlobalFloodMapperV2:aoiFilter');
+var mapFloods = require('users/aarnavagrawal/GlobalFloodMapperV2:mapFloods');
+var zscorebasic = require('users/aarnavagrawal/GlobalFloodMapperV2:zScoreBasic');
+var floodLegend = require('users/aarnavagrawal/GlobalFloodMapperV2:floodLegend');
+var generateChart = require('users/aarnavagrawal/GlobalFloodMapperV2:availabilityGraphStacked')
+var floodExport = require('users/aarnavagrawal/GlobalFloodMapperV2:floodMapExport');
 //generateCollectionChart
 
 // Import the aoiFilter module and create nested
@@ -376,7 +375,9 @@ function addLayerSelector(mapToChange, defaultValue, position) {
         }});
       
       // Add button and link to download flood TIFF map
-      var tiff_label = ui.Label('TIFF link', {shown: false});
+      var tiff_instructions_label = ui.Label('To download, open your terminal and navigate to the desired download directory. Then, copy and paste the command below:', {shown: false});
+      var tiff_download_label = ui.Label('TIFF Link', {shown: false});
+
       var tiff_download_button = ui.Button({
         label: 'TIFF',
         onClick: function() {
@@ -395,8 +396,8 @@ function addLayerSelector(mapToChange, defaultValue, position) {
             // Cell Size Slider (affects the cell size)
             var cellSizeLabel = ui.Label('Cell Size');
             var cellSizeSlider = ui.Slider({
-              min: 300,
-              max: 700,
+              min: 100,
+              max: 1000,
               value: 500,
               step: 10,
               style: {width: '100%'},
@@ -410,7 +411,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
                 var cellSizeValue = cellSizeSlider.getValue();
       
                 var flood_image = rightMap.layers().get(2).getEeObject();
-                var tiff_url = floodExport.getFloodTiffUrl(
+                var tiff_urls = floodExport.getFloodTiffUrl(
                   flood_image,
                   smoothingValue,
                   smoothingValue,
@@ -419,9 +420,10 @@ function addLayerSelector(mapToChange, defaultValue, position) {
                   'FloodMap'
                 );
       
-                tiff_label.setUrl(tiff_url);
-                tiff_label.style().set({shown: true});
-                
+                tiff_instructions_label.style().set({shown: true, stretch: 'horizontal', textAlign: 'left'});
+                tiff_download_label.setValue(tiff_urls);
+                tiff_download_label.style().set({shown: true});
+
                 smoothingSliderLabel.style().set({shown: false});
                 smoothingSlider.style().set({shown: false});
                 cellSizeLabel.style().set({shown: false});
@@ -454,7 +456,8 @@ function addLayerSelector(mapToChange, defaultValue, position) {
       rightSubPanel1.add(tiff_download_button)
       rightSubPanel2.add(shp_label)
       rightSubPanel2.add(png_label)
-      rightSubPanel2.add(tiff_label)
+      rightSubPanel2.add(tiff_instructions_label)
+      rightSubPanel2.add(tiff_download_label)
       controlPanel.add(rightSubPanel1)
       controlPanel.add(rightSubPanel2)
       
