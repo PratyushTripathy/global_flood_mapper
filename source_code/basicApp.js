@@ -2,7 +2,6 @@
 This is the basic version of the Global Flood Mapper tool.
 
 The tool is a part of the article titled:
-
 A novel application for rapid flood mapping using Sentinel-1 SAR data and Google Earth Engine
 
 */
@@ -39,6 +38,10 @@ updateAoi('India', 'Bihar', false)
 // Define a default start date
 var start_date = [ee.Date('2020-05-01'), ee.Date('2020-07-20')];
 var advance_days = [60, 8];
+
+// Variable to track if we're in drawing mode
+var drawingMode = false;
+var drawnGeometry = null;
 
 // Modify the function from DeVries to fit the needs
 function getFloodImage(s1_collection_t1, s1_collection_t2){
@@ -137,6 +140,28 @@ var show_right_sar = true
 var show_left_optical = false
 var show_right_optical = false
 
+// Function to handle drawing a box on the map
+function enableDrawing(map) {
+  drawingMode = true;
+  
+  // Clear any existing drawn geometry
+  map.drawingTools().layers().reset();
+  
+  // Configure the drawing tools for rectangles
+  map.drawingTools().setShape('rectangle');
+  map.drawingTools().setLinked(false);
+  map.drawingTools().setDrawModes(['rectangle']);
+  map.drawingTools().draw();
+  
+  // Add a listener for when drawing is completed
+  map.drawingTools().onDraw(function(geometry) {
+    drawnGeometry = geometry;
+    drawingMode = false;
+    aoi = geometry;
+    updateBothMapPanel();
+  });
+}
+
 // Adds a layer selection widget to the given map, to allow users to change
 // which image is displayed in the associated map.
 function addLayerSelector(mapToChange, defaultValue, position) {
@@ -201,6 +226,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
   statesDD.onChange(function(value){
     updateAoi(countryDD.getValue(), value, false)
     extent_checkbox.setValue(0)
+    draw_box_checkbox.setValue(0)
     // Using updateMap() function here will only update one map
     updateBothMapPanel()
   })
@@ -252,6 +278,8 @@ function addLayerSelector(mapToChange, defaultValue, position) {
     var dd_heading = ui.Label("Select area of interest:")
     controlPanel.add(dd_heading)
     controlPanel.add(leftSubPanel1)
+    
+    // Add checkbox for current extent
     var extent_checkbox = ui.Checkbox({
       label: 'Current map extent',
       value: false,
@@ -259,14 +287,52 @@ function addLayerSelector(mapToChange, defaultValue, position) {
       fontSize:'12px'}});
       extent_checkbox.onChange(function(value){
         //print(aoi, ee.Geometry.MultiPolygon([ee.Geometry.Rectangle(rightMap.getBounds())]))
-        if((countryDD.getValue() === null)||(statesDD.getValue() === null)){
-          aoi = (value == '0') ? updateAoi('India', 'Bihar', true) : ee.Geometry.MultiPolygon([ee.Geometry.Rectangle(rightMap.getBounds())])
-        }else{
-          aoi = (value == '0') ? updateAoi(countryDD.getValue(), statesDD.getValue(), true) : ee.Geometry.MultiPolygon([ee.Geometry.Rectangle(rightMap.getBounds())])
+        if(value) {
+          aoi = ee.Geometry.MultiPolygon([ee.Geometry.Rectangle(rightMap.getBounds())])
+          draw_box_checkbox.setValue(0); // Uncheck draw box if extent is checked
+          updateBothMapPanel()
+        } else if (draw_box_checkbox.getValue()) {
+          // If draw box is checked, don't change the AOI
+        } else {
+          // Revert to default/selected region if both options are unchecked
+          if((countryDD.getValue() === null)||(statesDD.getValue() === null)){
+            aoi = updateAoi('India', 'Bihar', true);
+          } else {
+            aoi = updateAoi(countryDD.getValue(), statesDD.getValue(), true);
+          }
+          updateBothMapPanel()
         }
-        updateBothMapPanel()
       })
     controlPanel.add(extent_checkbox)
+    
+    // Add checkbox for draw box functionality
+    var draw_box_checkbox = ui.Checkbox({
+      label: 'Draw box on map for AOI',
+      value: false,
+      style: {stretch: 'horizontal', textAlign: 'left',
+      fontSize:'12px'}});
+    draw_box_checkbox.onChange(function(value){
+      if(value) {
+        // Enable drawing mode
+        extent_checkbox.setValue(0);
+        enableDrawing(leftMap);
+      } else {
+        // If unchecked and the other option is also unchecked, revert to default region
+        if(!extent_checkbox.getValue()) {
+          if((countryDD.getValue() === null)||(statesDD.getValue() === null)){
+            aoi = updateAoi('India', 'Bihar', true);
+          } else {
+            aoi = updateAoi(countryDD.getValue(), statesDD.getValue(), true);
+          }
+          updateBothMapPanel();
+        }
+        
+        // Clear drawing tools
+        leftMap.drawingTools().layers().reset();
+        leftMap.drawingTools().stop();
+      }
+    })
+    controlPanel.add(draw_box_checkbox)
   }
   controlPanel.add(label)
   controlPanel.add(dateSlider)
@@ -490,6 +556,10 @@ leftMap.setControlVisibility(true);
 
 var rightMap = ui.Map();
 rightMap.setControlVisibility(true);
+
+// Initialize drawing tools
+leftMap.drawingTools().setShown(false);
+rightMap.drawingTools().setShown(false);
 
 var left_panel = addLayerSelector(leftMap, 0, 'middle-left');
 var left_dummy = left_panel[1];
