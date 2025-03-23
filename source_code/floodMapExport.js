@@ -26,7 +26,11 @@ var getFloodShpUrl = function(floodLayer, value, radius, aoi, cellSize, filename
   var flood_vector = ee.FeatureCollection(vectors);
   
   // print download url
-  var vector_url = flood_vector.getDownloadURL('kml', [], filename)
+  var vector_url = flood_vector.getDownloadURL({
+    format: 'shp',  // Explicitly set the format
+    filename: filename
+  });
+
   
   return(vector_url)
 }
@@ -35,7 +39,7 @@ exports.getFloodShpUrl = getFloodShpUrl;
 
 
 // Define a function to smoothen the map and export the TIFF
-var getFloodTiffUrl = function(floodLayer, value, radius, aoi, cellSize, filenamePrefix) {
+var getFloodTiffUrl = function(floodLayer, value, radius, aoi, cellSize, start_date) {
   // Get the bounding box of the AOI
   var bounds = aoi.bounds();
   var coords = ee.List(bounds.coordinates().get(0));
@@ -78,8 +82,15 @@ var getFloodTiffUrl = function(floodLayer, value, radius, aoi, cellSize, filenam
     // Ensure the raster has the correct mask and bands for export
     var flood_image = smooth_flood_binary.selfMask().rename('FloodMap');
 
-    var filename = filenamePrefix + '_Part' + (index + 1);
-
+    var filename = 'GFM_' +
+                  start_date[0].format('YYYYMMdd').getInfo() + '_' +
+                  start_date[1].format('YYYYMMdd').getInfo() + '_' +
+                  aoi.bounds().coordinates().get(0).getInfo()[0][1].toFixed(2) + '_' +
+                  aoi.bounds().coordinates().get(0).getInfo()[0][0].toFixed(2) + '_' +
+                  aoi.bounds().coordinates().get(0).getInfo()[2][1].toFixed(2) + '_' +
+                  aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2) + '_' +
+                  cellSize+'m_SR'+radius+'_'+(index+1);
+                  
     // Generate the download URL for the GeoTIFF
     var tiff_url = flood_image.getDownloadURL({
       name: filename,
@@ -90,7 +101,7 @@ var getFloodTiffUrl = function(floodLayer, value, radius, aoi, cellSize, filenam
     });
 
     // Generate the partial curl command for the link
-    return ' -L -o file' + index + '.tif ' + tiff_url;
+    return ' -L -o ' +filename + '.tif ' + tiff_url;
   });
   
   // Generate the combined curl command
