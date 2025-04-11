@@ -1,6 +1,5 @@
 /*
-This is the simplified version of the Global Flood Mapper tool
-with AOI selection functionality removed.
+This is the basic version of the Global Flood Mapper tool
 
 The tool is a part of the article titled:
 A novel application for rapid flood mapping using Sentinel-1 SAR data and Google Earth Engine
@@ -14,12 +13,35 @@ var floodLegend = require('users/aarnavagrawal/GlobalFloodMapperV2:floodLegend')
 var generateChart = require('users/aarnavagrawal/GlobalFloodMapperV2:availabilityGraphStacked')
 var floodExport = require('users/aarnavagrawal/GlobalFloodMapperV2:floodMapExport');
 
+
+var ghslPop = ee.Image('JRC/GHSL/P2023A/GHS_POP/2020').select('population_count'); 
+var gpwPop = ee.ImageCollection('CIESIN/GPWv411/GPW_UNWPP-Adjusted_Population_Count').first().select('unwpp-adjusted_population_count'); 
+var landscanPop = ee.ImageCollection('projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL')
+                    .filterDate('2020-01-01', '2020-12-31') 
+                    .first()
+                    .select('b1'); 
+
+
 // Set a fixed AOI for the application
 // Define a default AOI (India, Bihar)
 var aoi = ee.FeatureCollection("FAO/GAUL/2015/level2")
         .filter(ee.Filter.equals('ADM0_NAME', 'India'))
         .filter(ee.Filter.equals('ADM1_NAME', 'Bihar'))
         .geometry();
+
+function updateAoi(level_0, level_1, ret){
+  aoi = ee.FeatureCollection("FAO/GAUL/2015/level2")
+        .filter(ee.Filter.equals('ADM0_NAME', level_0))
+        .filter(ee.Filter.equals('ADM1_NAME', level_1))
+        .geometry();
+  if (ret === true){
+    return(aoi)
+  }
+}
+updateAoi('India', 'Bihar', false)
+
+var country_name = aoi_filter.countries
+
 
 // Define a default start date
 var start_date = [ee.Date('2020-05-01'), ee.Date('2020-07-20')];
@@ -100,6 +122,78 @@ function getSentinel2WithinDateRange(date, span){
   return sentinel2.mean().clip(aoi)
 }
 
+function calculateAffectedPopulation(floodMap, geometry, resultsPanel) {
+  resultsPanel.clear(); 
+  resultsPanel.add(ui.Label('Calculating... Please wait.')); 
+
+  var highConfidenceFloodMask = floodMap.eq(3);
+
+  var calculateSum = function(popImage, scale, bandName) {
+    var sum = popImage.updateMask(highConfidenceFloodMask)
+                     .reduceRegion({
+                       reducer: ee.Reducer.sum(),
+                       geometry: geometry,
+                       scale: scale, 
+                       maxPixels: 1e13, 
+                       bestEffort: true 
+                     });
+    return ee.Number(sum.get(bandName)).round(); 
+  };
+
+  // Calculate for each dataset
+  var ghslSum = calculateSum(ghslPop, 100, 'population_count'); 
+  var gpwSum = calculateSum(gpwPop, gpwPop.projection().nominalScale(), 'unwpp-adjusted_population_count'); 
+  var landscanSum = calculateSum(landscanPop, landscanPop.projection().nominalScale(), 'b1');
+
+
+  ee.Dictionary({
+    'GHSL (100m)': ghslSum,
+    'GPW (~1km)': gpwSum,
+    'LandScan (~1km)': landscanSum
+  }).evaluate(function(results, error) {
+    resultsPanel.clear();
+    if (error) {
+      print('Population Calculation Error:', error);
+      resultsPanel.add(ui.Label('Error calculating population.'));
+    } else {
+      var createPopulationBarChartFromFeatures = function(results) {
+        // Create a feature collection with the population data
+        var features = [
+          ee.Feature(null, {source: 'GHSL', population: results['GHSL (100m)']}),
+          ee.Feature(null, {source: 'GPW', population: results['GPW (~1km)']}),
+          ee.Feature(null, {source: 'LandScan', population: results['LandScan (~1km)']})
+        ];
+        
+        var populationFC = ee.FeatureCollection(features);
+        
+        // Create the chart from the feature collection
+        var chart = ui.Chart.feature.byFeature({
+          features: populationFC,
+          xProperty: 'source',
+          yProperties: ['population']
+        })
+        .setChartType('ColumnChart')
+        .setOptions({
+          title: 'Affected Population (High Confidence Floods)',
+          vAxis: {title: 'Population'},
+          hAxis: {title: 'Population Source'},
+          legend: {position: 'none'},
+          colors: ['#1d6b99']
+        });
+        
+        return chart;
+      };
+      
+      // Replace your existing code with this:
+      var populationChart = createPopulationBarChartFromFeatures(results);
+      resultsPanel.add(ui.Label('Affected Population (High Confidence Floods):', {fontWeight: 'bold'}));
+      resultsPanel.add(populationChart);
+    }
+  });
+}
+
+
+
 // Create a function to generate Image dynamically
 function getS1Image(index){
   var s1_collection = getSentinel1WithinDateRange(start_date[index], advance_days[index]);
@@ -148,6 +242,44 @@ function addLayerSelector(mapToChange, defaultValue, position) {
         {palette: mapFloods.palette}, 'Flood Map', true));
     }
   }
+  
+  // Add dropdown for states first so that
+  // it can be updated from within country dropdown
+  var leftSubPanel1 = ui.Panel({
+    layout: ui.Panel.Layout.flow('horizontal'),
+    style:{width: '100%'}
+  })
+  
+  // Create drop-downs
+  var countryDD = ui.Select({items:[], placeholder:'Loading..', 
+    style:{fontSize:'14px', color:'blue', width:'40%', padding:'0px'}})
+  var statesDD = ui.Select({items:[], placeholder:'State', 
+    style:{fontSize:'14px', color:'blue', width:'40%', padding:'0px'}})
+
+  var countryNames = ee.List(Object.keys(country_name))
+  //print(countryNames)
+  countryNames.evaluate(function(states){
+    countryDD.items().reset(states)
+    countryDD.setPlaceholder('Country')
+    countryDD.onChange(function(state){
+      // once you select a state (onChange) get all counties and fill the dropdown
+      statesDD.setPlaceholder('Loading...')
+      var counties = ee.List(country_name[state]);
+      //print(counties)
+      counties.evaluate(function(countiesNames){
+        statesDD.items().reset(countiesNames)
+        statesDD.setPlaceholder('State')
+      })
+    })
+  })
+  statesDD.onChange(function(value){
+    updateAoi(countryDD.getValue(), value, false)
+    updateBothMapPanel()
+  })
+  
+  // Add drop-downs to the sub-panel
+  leftSubPanel1.add(countryDD)
+  leftSubPanel1.add(statesDD)
 
   // Add the date slider for both the maps
   var dateSlider = ui.DateSlider({
@@ -191,9 +323,13 @@ function addLayerSelector(mapToChange, defaultValue, position) {
   
   // Elements specific to left panel
   if(defaultValue == 0){
+    var dd_heading = ui.Label("Select area of interest:")
+    controlPanel.add(dd_heading)
+    controlPanel.add(leftSubPanel1)
+
     controlPanel.add(
       ui.Button({
-        label: 'Draw AOI',
+        label: 'Select Custom AOI',
         style: {stretch: 'horizontal'},
         onClick: function() {
           leftMap.drawingTools().clear();
@@ -425,6 +561,44 @@ function addLayerSelector(mapToChange, defaultValue, position) {
     rightSubPanel2.add(tiff_download_label)
     controlPanel.add(rightSubPanel1)
     controlPanel.add(rightSubPanel2)
+    
+    
+    // Create panel for population results
+    var populationResultsPanel = ui.Panel([], 'flow', {padding: '5px 0px 0px 0px', stretch: 'horizontal'}); // Panel to display results
+
+    // Create the button to trigger population calculation
+    var calculatePopButton = ui.Button({
+      label: 'Calculate Affected Population (High Confidence)',
+      onClick: function() {
+        // Get the current flood map layer (assuming it's the 3rd layer [index 2] on the right map)
+        // Check layer indices if you have modified the map layers
+        var floodLayer;
+        try {
+           // Inside addLayerSelector, mapToChange refers to the relevant map (rightMap when defaultValue is 1)
+           floodLayer = mapToChange.layers().get(2).getEeObject(); // Assumes flood map is layer index 2
+        } catch (e) {
+           print("Error accessing flood layer. Ensure Flood Map layer is added to the map (index 2).");
+           populationResultsPanel.clear();
+           populationResultsPanel.add(ui.Label('Error: Flood Map layer not found on map (index 2).'));
+           return;
+        }
+
+        if (!floodLayer) {
+             print("Error: Flood layer object is invalid.");
+             populationResultsPanel.clear();
+             populationResultsPanel.add(ui.Label('Error: Flood Map layer is invalid.'));
+             return;
+        }
+        // Get the current AOI geometry (using the global 'aoi' variable)
+        var currentAoi = aoi;
+        calculateAffectedPopulation(floodLayer, currentAoi, populationResultsPanel);
+      },
+      style: {stretch: 'horizontal', margin: '8px 0px 0px 0px'} // Added margin top
+    });
+
+    controlPanel.add(calculatePopButton);       // Add the button to the control panel
+    controlPanel.add(populationResultsPanel);   // Add the results panel below the button
+
   }
   
   // dummy panel to add on the either side
@@ -509,6 +683,8 @@ function updateChart(map, defaultValue, controlPanel){
   }else{
     controlPanel.add(chart)
   }
+  
+  
 }
 
 // Create panels for left and right sides
