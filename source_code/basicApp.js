@@ -1,10 +1,13 @@
 /*
-This is the basic version of the Global Flood Mapper tool
+This is the basic version of the Global Flood Mapper tool.
 
 The tool is a part of the article titled:
+
 A novel application for rapid flood mapping using Sentinel-1 SAR data and Google Earth Engine
+
 */
 
+var aoi = 0;
 // Import all the scripts
 var aoi_filter = require('users/aarnavagrawal/GlobalFloodMapperV2:aoiFilter');
 var mapFloods = require('users/aarnavagrawal/GlobalFloodMapperV2:mapFloods');
@@ -13,23 +16,15 @@ var floodLegend = require('users/aarnavagrawal/GlobalFloodMapperV2:floodLegend')
 var generateChart = require('users/aarnavagrawal/GlobalFloodMapperV2:availabilityGraphStacked')
 var floodExport = require('users/aarnavagrawal/GlobalFloodMapperV2:floodMapExport');
 
+// Import the aoiFilter module and create nested
+// dictionary for level0, level1 & level 2 boundaries (slower)
+// Better is to create and store the dictionary beforehand,
+// rather than having to compute it everytime.
+var country_name = aoi_filter.countries
 
-var ghslPop = ee.Image('JRC/GHSL/P2023A/GHS_POP/2020').select('population_count'); 
-var gpwPop = ee.ImageCollection('CIESIN/GPWv411/GPW_UNWPP-Adjusted_Population_Count').first().select('unwpp-adjusted_population_count'); 
-var landscanPop = ee.ImageCollection('projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL')
-                    .filterDate('2020-01-01', '2020-12-31') 
-                    .first()
-                    .select('b1'); 
-
-
-// Set a fixed AOI for the application
-// Define a default AOI (India, Bihar)
-var aoi = ee.FeatureCollection("FAO/GAUL/2015/level2")
-        .filter(ee.Filter.equals('ADM0_NAME', 'India'))
-        .filter(ee.Filter.equals('ADM1_NAME', 'Bihar'))
-        .geometry();
-
+// Define a function to update aoi
 function updateAoi(level_0, level_1, ret){
+  //print('updating AOI')
   aoi = ee.FeatureCollection("FAO/GAUL/2015/level2")
         .filter(ee.Filter.equals('ADM0_NAME', level_0))
         .filter(ee.Filter.equals('ADM1_NAME', level_1))
@@ -40,12 +35,10 @@ function updateAoi(level_0, level_1, ret){
 }
 updateAoi('India', 'Bihar', false)
 
-var country_name = aoi_filter.countries
-
-
 // Define a default start date
 var start_date = [ee.Date('2020-05-01'), ee.Date('2020-07-20')];
 var advance_days = [60, 8];
+
 
 // Modify the function from DeVries to fit the needs
 function getFloodImage(s1_collection_t1, s1_collection_t2){
@@ -122,78 +115,6 @@ function getSentinel2WithinDateRange(date, span){
   return sentinel2.mean().clip(aoi)
 }
 
-function calculateAffectedPopulation(floodMap, geometry, resultsPanel) {
-  resultsPanel.clear(); 
-  resultsPanel.add(ui.Label('Calculating... Please wait.')); 
-
-  var highConfidenceFloodMask = floodMap.eq(3);
-
-  var calculateSum = function(popImage, scale, bandName) {
-    var sum = popImage.updateMask(highConfidenceFloodMask)
-                     .reduceRegion({
-                       reducer: ee.Reducer.sum(),
-                       geometry: geometry,
-                       scale: scale, 
-                       maxPixels: 1e13, 
-                       bestEffort: true 
-                     });
-    return ee.Number(sum.get(bandName)).round(); 
-  };
-
-  // Calculate for each dataset
-  var ghslSum = calculateSum(ghslPop, 100, 'population_count'); 
-  var gpwSum = calculateSum(gpwPop, gpwPop.projection().nominalScale(), 'unwpp-adjusted_population_count'); 
-  var landscanSum = calculateSum(landscanPop, landscanPop.projection().nominalScale(), 'b1');
-
-
-  ee.Dictionary({
-    'GHSL (100m)': ghslSum,
-    'GPW (~1km)': gpwSum,
-    'LandScan (~1km)': landscanSum
-  }).evaluate(function(results, error) {
-    resultsPanel.clear();
-    if (error) {
-      print('Population Calculation Error:', error);
-      resultsPanel.add(ui.Label('Error calculating population.'));
-    } else {
-      var createPopulationBarChartFromFeatures = function(results) {
-        // Create a feature collection with the population data
-        var features = [
-          ee.Feature(null, {source: 'GHSL', population: results['GHSL (100m)']}),
-          ee.Feature(null, {source: 'GPW', population: results['GPW (~1km)']}),
-          ee.Feature(null, {source: 'LandScan', population: results['LandScan (~1km)']})
-        ];
-        
-        var populationFC = ee.FeatureCollection(features);
-        
-        // Create the chart from the feature collection
-        var chart = ui.Chart.feature.byFeature({
-          features: populationFC,
-          xProperty: 'source',
-          yProperties: ['population']
-        })
-        .setChartType('ColumnChart')
-        .setOptions({
-          title: 'Affected Population (High Confidence Floods)',
-          vAxis: {title: 'Population'},
-          hAxis: {title: 'Population Source'},
-          legend: {position: 'none'},
-          colors: ['#1d6b99']
-        });
-        
-        return chart;
-      };
-      
-      // Replace your existing code with this:
-      var populationChart = createPopulationBarChartFromFeatures(results);
-      resultsPanel.add(ui.Label('Affected Population (High Confidence Floods):', {fontWeight: 'bold'}));
-      resultsPanel.add(populationChart);
-    }
-  });
-}
-
-
-
 // Create a function to generate Image dynamically
 function getS1Image(index){
   var s1_collection = getSentinel1WithinDateRange(start_date[index], advance_days[index]);
@@ -242,7 +163,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
         {palette: mapFloods.palette}, 'Flood Map', true));
     }
   }
-  
+
   // Add dropdown for states first so that
   // it can be updated from within country dropdown
   var leftSubPanel1 = ui.Panel({
@@ -255,7 +176,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
     style:{fontSize:'14px', color:'blue', width:'40%', padding:'0px'}})
   var statesDD = ui.Select({items:[], placeholder:'State', 
     style:{fontSize:'14px', color:'blue', width:'40%', padding:'0px'}})
-
+  
   var countryNames = ee.List(Object.keys(country_name))
   //print(countryNames)
   countryNames.evaluate(function(states){
@@ -274,13 +195,14 @@ function addLayerSelector(mapToChange, defaultValue, position) {
   })
   statesDD.onChange(function(value){
     updateAoi(countryDD.getValue(), value, false)
+    // Using updateMap() function here will only update one map
     updateBothMapPanel()
   })
   
   // Add drop-downs to the sub-panel
   leftSubPanel1.add(countryDD)
   leftSubPanel1.add(statesDD)
-
+  
   // Add the date slider for both the maps
   var dateSlider = ui.DateSlider({
     start: ee.Date('2015-01-01'),
@@ -316,20 +238,16 @@ function addLayerSelector(mapToChange, defaultValue, position) {
   // use the legend module to create the legend for flood layer
   var legend = floodLegend.legend();
     
-  // Add elements to the panel
-  controlPanel.add(label)
-  controlPanel.add(dateSlider)
-  controlPanel.add(text_box)
+  
   
   // Elements specific to left panel
   if(defaultValue == 0){
     var dd_heading = ui.Label("Select area of interest:")
     controlPanel.add(dd_heading)
     controlPanel.add(leftSubPanel1)
-
     controlPanel.add(
       ui.Button({
-        label: 'Select Custom AOI',
+        label: 'Draw AOI',
         style: {stretch: 'horizontal'},
         onClick: function() {
           leftMap.drawingTools().clear();
@@ -363,6 +281,12 @@ function addLayerSelector(mapToChange, defaultValue, position) {
         }
       })    
     );    
+    
+    // Add elements to the panel
+    controlPanel.add(label)
+    controlPanel.add(dateSlider)
+    controlPanel.add(text_box)
+  
     controlPanel.add(
       ui.Label('Please cite as:',
       {stretch: 'horizontal', textAlign: 'left',
@@ -376,7 +300,33 @@ function addLayerSelector(mapToChange, defaultValue, position) {
   // Elements specific to right panel
   if(defaultValue == 1){
     controlPanel.add(
-      ui.Label('Download flood map',
+      ui.Label('Display Flood Impact Portal',
+      {stretch: 'horizontal', textAlign: 'left',
+      fontSize:'16px', fontWeight:'bold'}));
+    controlPanel.add(
+      ui.Label('Click the first button to generate the shareable URL in the address bar. Then, click the second button to go to the flood impact portal',
+      {stretch: 'horizontal', textAlign: 'left',
+      fontSize:'12px'}));
+    
+    var link_button = ui.Button({
+      label: 'Generate Link',
+      onClick: function() {
+        updateLink();
+      }
+    })
+    
+    var portal_button = ui.Button({
+      label: 'Go to flood impact portal',
+      onClick: function() {
+        updateLink();
+      }
+    })
+    
+    controlPanel.add(link_button);
+    controlPanel.add(portal_button);
+      
+    controlPanel.add(
+      ui.Label('Download Flood Map',
       {stretch: 'horizontal', textAlign: 'left',
       fontSize:'16px', fontWeight:'bold'}));
     
@@ -387,76 +337,81 @@ function addLayerSelector(mapToChange, defaultValue, position) {
     var rightSubPanel2 = ui.Panel({
       layout: ui.Panel.Layout.flow('horizontal', true),
       style:{width: '100%'}})
+    var exportControls = ui.Panel({
+      layout: ui.Panel.Layout.flow('horizontal', true),
+      style:{width: '100%'}})
     
     // Add button and link to download flood shapefile
     var shp_label = ui.Label('SHP link', {shown: false});
     var shp_download_button = ui.Button({
       label: 'SHP',
       onClick: function() {
-        if (!rightSubPanel1.widgets().contains(shpSmoothingSliderLabel)) {
-    
-          // Smoothing Radius Slider (affects both smoothing values)
-          var shpSmoothingSliderLabel = ui.Label('Smoothing Radius');
-          var shpSmoothingSlider = ui.Slider({
-            min: 1,
-            max: 10,
-            value: 3,
-            step: 1,
-            style: {width: '100%'},
-          });
-    
-          // Cell Size Slider (affects the cell size)
-          var shpCellSizeLabel = ui.Label('Cell Size');
-          var shpCellSizeSlider = ui.Slider({
-            min: 10,
-            max: 500,
-            value: 100,
-            step: 10,
-            style: {width: '100%'},
-          });
-    
-          // Confirm Button
-          var shpConfirmButton = ui.Button({
-            label: 'Confirm',
-            onClick: function() {
-              var smoothingValue = shpSmoothingSlider.getValue();
-              var cellSizeValue = shpCellSizeSlider.getValue();
-    
-              var flood_image = rightMap.layers().get(2).getEeObject();
-              var vector_url = floodExport.getFloodShpUrl(
-                flood_image,
-                smoothingValue,
-                smoothingValue,
-                aoi,
-                cellSizeValue,
-                'GFM_' +
-                  start_date[0].format('YYYYMMdd').getInfo() + '_' +
-                  start_date[1].format('YYYYMMdd').getInfo() + '_' +
-                  aoi.bounds().coordinates().get(0).getInfo()[0][1].toFixed(2) + '_' +
-                  aoi.bounds().coordinates().get(0).getInfo()[0][0].toFixed(2) + '_' +
-                  aoi.bounds().coordinates().get(0).getInfo()[2][1].toFixed(2) + '_' +
-                  aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2) + '_' +
-                  cellSizeValue+'m_SR'+smoothingValue
-              );
-    
-              shp_label.setUrl(vector_url);
-              shp_label.style().set({shown: true});
-              
-              shpSmoothingSliderLabel.style().set({shown: false});
-              shpSmoothingSlider.style().set({shown: false});
-              shpCellSizeLabel.style().set({shown: false});
-              shpCellSizeSlider.style().set({shown: false});
-              shpConfirmButton.style().set({shown: false});
-            }
-          });
-    
-          // Add the sliders and confirm button to the existing right-hand panel
-          rightSubPanel1.add(shpSmoothingSliderLabel);
-          rightSubPanel1.add(shpSmoothingSlider);
-          rightSubPanel1.add(shpCellSizeLabel);
-          rightSubPanel1.add(shpCellSizeSlider);
-          rightSubPanel1.add(shpConfirmButton);
-        }
+        exportControls.clear();
+        // Smoothing Radius Slider (affects both smoothing values)
+        var shpSmoothingSliderLabel = ui.Label('Smoothing Radius');
+        var shpSmoothingSlider = ui.Slider({
+          min: 1,
+          max: 10,
+          value: 3,
+          step: 1,
+          style: {width: '100%'},
+        });
+  
+        // Cell Size Slider (affects the cell size)
+        var shpCellSizeLabel = ui.Label('Cell Size');
+        var shpCellSizeSlider = ui.Slider({
+          min: 10,
+          max: 500,
+          value: 100,
+          step: 10,
+          style: {width: '100%'},
+        });
+  
+        // Confirm Button
+        var shpConfirmButton = ui.Button({
+          label: 'Confirm',
+          onClick: function() {
+            var smoothingValue = shpSmoothingSlider.getValue();
+            var cellSizeValue = shpCellSizeSlider.getValue();
+  
+            var flood_image = rightMap.layers().get(2).getEeObject();
+            var vector_url = floodExport.getFloodShpUrl(
+              flood_image,
+              smoothingValue,
+              smoothingValue,
+              aoi,
+              cellSizeValue,
+              'GFM_' +
+                start_date[0].format('YYYYMMdd').getInfo() + '_' +
+                start_date[1].format('YYYYMMdd').getInfo() + '_' +
+                aoi.bounds().coordinates().get(0).getInfo()[0][1].toFixed(2) + '_' +
+                aoi.bounds().coordinates().get(0).getInfo()[0][0].toFixed(2) + '_' +
+                aoi.bounds().coordinates().get(0).getInfo()[2][1].toFixed(2) + '_' +
+                aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2) + '_' +
+                cellSizeValue+'m_SR'+smoothingValue
+            );
+  
+            shp_label.setUrl(vector_url);
+            shp_label.style().set({shown: true});
+            
+            shpSmoothingSliderLabel.style().set({shown: false});
+            shpSmoothingSlider.style().set({shown: false});
+            shpCellSizeLabel.style().set({shown: false});
+            shpCellSizeSlider.style().set({shown: false});
+            shpConfirmButton.style().set({shown: false});
+          }
+        });
+        
+        
+  
+        // Add the sliders and confirm button to the existing right-hand panel
+        exportControls.add(shpSmoothingSliderLabel);
+        exportControls.add(shpSmoothingSlider);
+        exportControls.add(shpCellSizeLabel);
+        exportControls.add(shpCellSizeSlider);
+        exportControls.add(shpConfirmButton);
+        rightSubPanel1.remove(exportControls);
+        rightSubPanel1.add(exportControls);
       }
     });
     
@@ -484,65 +439,66 @@ function addLayerSelector(mapToChange, defaultValue, position) {
     var tiff_download_button = ui.Button({
       label: 'TIFF',
       onClick: function() {
-        if (!rightSubPanel1.widgets().contains(smoothingSliderLabel)) {
-          
-          // Smoothing Radius Slider (affects both smoothing values)
-          var smoothingSliderLabel = ui.Label('Smoothing Radius');
-          var smoothingSlider = ui.Slider({
-            min: 1,
-            max: 10,
-            value: 3,
-            step: 1,
-            style: {width: '100%'},
-          });
-    
-          // Cell Size Slider (affects the cell size)
-          var cellSizeLabel = ui.Label('Cell Size');
-          var cellSizeSlider = ui.Slider({
-            min: 100,
-            max: 700,
-            value: 400,
-            step: 10,
-            style: {width: '100%'},
-          });
-    
-          // Confirm Button
-          var confirmButton = ui.Button({
-            label: 'Confirm',
-            onClick: function() {
-              var smoothingValue = smoothingSlider.getValue();
-              var cellSizeValue = cellSizeSlider.getValue();
-    
-              var flood_image = rightMap.layers().get(2).getEeObject();
-              var tiff_urls = floodExport.getFloodTiffUrl(
-                flood_image,
-                smoothingValue,
-                smoothingValue,
-                aoi,
-                cellSizeValue,
-                start_date
-              );
-    
-              tiff_instructions_label.style().set({shown: true, stretch: 'horizontal', textAlign: 'left'});
-              tiff_download_label.setValue(tiff_urls);
-              tiff_download_label.style().set({shown: true, stretch: 'horizontal', textAlign: 'left'});
-              
-              smoothingSliderLabel.style().set({shown: false});
-              smoothingSlider.style().set({shown: false});
-              cellSizeLabel.style().set({shown: false});
-              cellSizeSlider.style().set({shown: false});
-              confirmButton.style().set({shown: false});
-            }
-          });
-          
-    
-          // Add the sliders and confirm button to the existing right-hand panel
-          rightSubPanel1.add(smoothingSliderLabel);
-          rightSubPanel1.add(smoothingSlider);
-          rightSubPanel1.add(cellSizeLabel);
-          rightSubPanel1.add(cellSizeSlider);
-          rightSubPanel1.add(confirmButton);
-        }
+        exportControls.clear();
+        // Smoothing Radius Slider (affects both smoothing values)
+        var smoothingSliderLabel = ui.Label('Smoothing Radius');
+        var smoothingSlider = ui.Slider({
+          min: 1,
+          max: 10,
+          value: 3,
+          step: 1,
+          style: {width: '100%'},
+        });
+  
+        // Cell Size Slider (affects the cell size)
+        var cellSizeLabel = ui.Label('Cell Size');
+        var cellSizeSlider = ui.Slider({
+          min: 100,
+          max: 700,
+          value: 400,
+          step: 10,
+          style: {width: '100%'},
+        });
+  
+        // Confirm Button
+        var confirmButton = ui.Button({
+          label: 'Confirm',
+          onClick: function() {
+            var smoothingValue = smoothingSlider.getValue();
+            var cellSizeValue = cellSizeSlider.getValue();
+  
+            var flood_image = rightMap.layers().get(2).getEeObject();
+            var tiff_urls = floodExport.getFloodTiffUrl(
+              flood_image,
+              smoothingValue,
+              smoothingValue,
+              aoi,
+              cellSizeValue,
+              start_date
+            );
+  
+            tiff_instructions_label.style().set({shown: true, stretch: 'horizontal', textAlign: 'left'});
+            tiff_download_label.setValue(tiff_urls);
+            tiff_download_label.style().set({shown: true, stretch: 'horizontal', textAlign: 'left'});
+            
+            smoothingSliderLabel.style().set({shown: false});
+            smoothingSlider.style().set({shown: false});
+            cellSizeLabel.style().set({shown: false});
+            cellSizeSlider.style().set({shown: false});
+            confirmButton.style().set({shown: false});
+          }
+        });
+        
+  
+        // Add the sliders and confirm button to the existing right-hand panel
+        exportControls.add(smoothingSliderLabel);
+        exportControls.add(smoothingSlider);
+        exportControls.add(cellSizeLabel);
+        exportControls.add(cellSizeSlider);
+        exportControls.add(confirmButton);
+        rightSubPanel1.remove(exportControls);
+        rightSubPanel1.add(exportControls);
+      
       }
     });
       
@@ -561,44 +517,6 @@ function addLayerSelector(mapToChange, defaultValue, position) {
     rightSubPanel2.add(tiff_download_label)
     controlPanel.add(rightSubPanel1)
     controlPanel.add(rightSubPanel2)
-    
-    
-    // Create panel for population results
-    var populationResultsPanel = ui.Panel([], 'flow', {padding: '5px 0px 0px 0px', stretch: 'horizontal'}); // Panel to display results
-
-    // Create the button to trigger population calculation
-    var calculatePopButton = ui.Button({
-      label: 'Calculate Affected Population (High Confidence)',
-      onClick: function() {
-        // Get the current flood map layer (assuming it's the 3rd layer [index 2] on the right map)
-        // Check layer indices if you have modified the map layers
-        var floodLayer;
-        try {
-           // Inside addLayerSelector, mapToChange refers to the relevant map (rightMap when defaultValue is 1)
-           floodLayer = mapToChange.layers().get(2).getEeObject(); // Assumes flood map is layer index 2
-        } catch (e) {
-           print("Error accessing flood layer. Ensure Flood Map layer is added to the map (index 2).");
-           populationResultsPanel.clear();
-           populationResultsPanel.add(ui.Label('Error: Flood Map layer not found on map (index 2).'));
-           return;
-        }
-
-        if (!floodLayer) {
-             print("Error: Flood layer object is invalid.");
-             populationResultsPanel.clear();
-             populationResultsPanel.add(ui.Label('Error: Flood Map layer is invalid.'));
-             return;
-        }
-        // Get the current AOI geometry (using the global 'aoi' variable)
-        var currentAoi = aoi;
-        calculateAffectedPopulation(floodLayer, currentAoi, populationResultsPanel);
-      },
-      style: {stretch: 'horizontal', margin: '8px 0px 0px 0px'} // Added margin top
-    });
-
-    controlPanel.add(calculatePopButton);       // Add the button to the control panel
-    controlPanel.add(populationResultsPanel);   // Add the results panel below the button
-
   }
   
   // dummy panel to add on the either side
@@ -628,6 +546,7 @@ right_panel = right_panel[0];
 
 var main_panel = [left_panel, right_panel]
 
+
 // Create a function that takes the checkbox boolean
 // value of the two layers of both the maps and updates
 // the variable. This function will be called before the 
@@ -640,6 +559,7 @@ function updateVisibility(){
   
   show_left_optical = leftMap.layers().get(1).getShown()
   show_right_optical = rightMap.layers().get(1).getShown()
+  
 }
 
 // This function is called when maps need to be refreshed
@@ -660,7 +580,7 @@ function updateBothMapPanel(){
   updateFloodMap()
 
   leftMap.centerObject(aoi)
-}
+  }
 
 // Update flood map
 function updateFloodMap(){
@@ -668,6 +588,21 @@ function updateFloodMap(){
         getFloodImage(getSentinel1WithinDateRange(start_date[0], advance_days[0]), 
                       getSentinel1WithinDateRange(start_date[1], advance_days[1])), 
         {palette: mapFloods.palette}, 'Flood Map', true));
+  
+}
+
+// Update url with necessary information
+function updateLink(){
+  ui.url.set({
+    'd0': start_date[0].format('YYYY-MM-dd').getInfo(), //pre-flood date
+    'd1': start_date[1].format('YYYY-MM-dd').getInfo(), //during-flood date
+    'ad0': advance_days[0], //before flood succeeding days
+    'ad1': advance_days[1], // during flood succeeding days
+    'llat': aoi.bounds().coordinates().get(0).getInfo()[0][1].toFixed(2), //aoi left latitude
+    'llong': aoi.bounds().coordinates().get(0).getInfo()[0][0].toFixed(2), //aoi left longitude
+    'rlat': aoi.bounds().coordinates().get(0).getInfo()[2][1].toFixed(2), //aoi right latitude
+    'rlong': aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2) //aoi right longitude
+  });
 }
 
 // Update availability graph
@@ -683,8 +618,6 @@ function updateChart(map, defaultValue, controlPanel){
   }else{
     controlPanel.add(chart)
   }
-  
-  
 }
 
 // Create panels for left and right sides
@@ -727,3 +660,30 @@ updateBothMapPanel();
 // Center on the default AOI
 leftMap.centerObject(aoi, 8);
 
+if(ui.url.get('d0', null) !== null) {
+  var preFloodDate = ui.url.get('d0');
+  var duringFloodDate = ui.url.get('d1');
+  
+  var preFloodDays = parseInt(ui.url.get('ad0'));
+  var duringFloodDays = parseInt(ui.url.get('ad1'));
+  
+  start_date = [ee.Date(preFloodDate), ee.Date(duringFloodDate)];
+  advance_days = [preFloodDays, duringFloodDays];
+  
+  var leftLon = parseFloat(ui.url.get('llong'));
+  var leftLat = parseFloat(ui.url.get('llat'));
+  var rightLon = parseFloat(ui.url.get('rlong'));
+  var rightLat = parseFloat(ui.url.get('rlat'));
+  
+  aoi = ee.Geometry.Rectangle(
+    [leftLon, leftLat, rightLon, rightLat],
+    null,
+    false  
+  );
+  
+  
+  ui.util.setTimeout(function() {
+    updateBothMapPanel();
+  }, 1000);
+  
+}
