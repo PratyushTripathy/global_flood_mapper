@@ -8,6 +8,12 @@ A novel application for rapid flood mapping using Sentinel-1 SAR data and Google
 */
 
 var aoi = 0;
+var drawnAOI = false; //checks if the aoi displayed is drawn by the user or selected through the dropdowns
+// Create drop-downs
+var countryDD = ui.Select({items:[], placeholder:'Loading..', 
+  style:{fontSize:'14px', color:'blue', width:'40%', padding:'0px'}})
+var statesDD = ui.Select({items:[], placeholder:'State', 
+  style:{fontSize:'14px', color:'blue', width:'40%', padding:'0px'}})
 // Import all the scripts
 var aoi_filter = require('users/aarnavagrawal/GlobalFloodMapperV2:aoiFilter');
 var mapFloods = require('users/aarnavagrawal/GlobalFloodMapperV2:mapFloods');
@@ -171,11 +177,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
     style:{width: '100%'}
   })
   
-  // Create drop-downs
-  var countryDD = ui.Select({items:[], placeholder:'Loading..', 
-    style:{fontSize:'14px', color:'blue', width:'40%', padding:'0px'}})
-  var statesDD = ui.Select({items:[], placeholder:'State', 
-    style:{fontSize:'14px', color:'blue', width:'40%', padding:'0px'}})
+  
   
   var countryNames = ee.List(Object.keys(country_name))
   //print(countryNames)
@@ -194,6 +196,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
     })
   })
   statesDD.onChange(function(value){
+    drawnAOI = false;
     updateAoi(countryDD.getValue(), value, false)
     // Using updateMap() function here will only update one map
     updateBothMapPanel()
@@ -250,6 +253,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
         label: 'Draw AOI',
         style: {stretch: 'horizontal'},
         onClick: function() {
+          drawnAOI = true;
           leftMap.drawingTools().clear();
           leftMap.drawingTools().setShown(false);
           leftMap.drawingTools().setShape('rectangle');
@@ -281,12 +285,13 @@ function addLayerSelector(mapToChange, defaultValue, position) {
         }
       })    
     );    
-    
-    // Add elements to the panel
-    controlPanel.add(label)
-    controlPanel.add(dateSlider)
-    controlPanel.add(text_box)
+  }
   
+  // Add elements to the panel
+  controlPanel.add(label)
+  controlPanel.add(dateSlider)
+  controlPanel.add(text_box)
+  if(defaultValue==0){
     controlPanel.add(
       ui.Label('Please cite as:',
       {stretch: 'horizontal', textAlign: 'left',
@@ -299,6 +304,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
   
   // Elements specific to right panel
   if(defaultValue == 1){
+    
     controlPanel.add(
       ui.Label('Display Flood Impact Portal',
       {stretch: 'horizontal', textAlign: 'left',
@@ -593,16 +599,28 @@ function updateFloodMap(){
 
 // Update url with necessary information
 function updateLink(){
-  ui.url.set({
+  if (drawnAOI == false && statesDD.getValue() != null && statesDD.getValue().length > 0 && countryDD.getValue().length > 0){
+    ui.url.set({
     'd0': start_date[0].format('YYYY-MM-dd').getInfo(), //pre-flood date
     'd1': start_date[1].format('YYYY-MM-dd').getInfo(), //during-flood date
     'ad0': advance_days[0], //before flood succeeding days
-    'ad1': advance_days[1], // during flood succeeding days
-    'llat': aoi.bounds().coordinates().get(0).getInfo()[0][1].toFixed(2), //aoi left latitude
-    'llong': aoi.bounds().coordinates().get(0).getInfo()[0][0].toFixed(2), //aoi left longitude
-    'rlat': aoi.bounds().coordinates().get(0).getInfo()[2][1].toFixed(2), //aoi right latitude
-    'rlong': aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2) //aoi right longitude
-  });
+    'ad1': advance_days[1], // during flood succeeding days      
+    'state': statesDD.getValue(),
+    'country': countryDD.getValue()
+    });
+  }
+  else{
+    ui.url.set({
+      'd0': start_date[0].format('YYYY-MM-dd').getInfo(), //pre-flood date
+      'd1': start_date[1].format('YYYY-MM-dd').getInfo(), //during-flood date
+      'ad0': advance_days[0], //before flood succeeding days
+      'ad1': advance_days[1], // during flood succeeding days      
+      'llat': aoi.bounds().coordinates().get(0).getInfo()[0][1].toFixed(2), //aoi left latitude
+      'llong': aoi.bounds().coordinates().get(0).getInfo()[0][0].toFixed(2), //aoi left longitude
+      'rlat': aoi.bounds().coordinates().get(0).getInfo()[2][1].toFixed(2), //aoi right latitude
+      'rlong': aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2) //aoi right longitude
+    });
+  }
 }
 
 // Update availability graph
@@ -670,17 +688,23 @@ if(ui.url.get('d0', null) !== null) {
   start_date = [ee.Date(preFloodDate), ee.Date(duringFloodDate)];
   advance_days = [preFloodDays, duringFloodDays];
   
-  var leftLon = parseFloat(ui.url.get('llong'));
-  var leftLat = parseFloat(ui.url.get('llat'));
-  var rightLon = parseFloat(ui.url.get('rlong'));
-  var rightLat = parseFloat(ui.url.get('rlat'));
-  
-  aoi = ee.Geometry.Rectangle(
-    [leftLon, leftLat, rightLon, rightLat],
-    null,
-    false  
-  );
-  
+  if(ui.url.get('country', null) !== null){
+    var country = ui.url.get('country');
+    var state = ui.url.get('state');
+    updateAoi(country, state, false);
+  }
+  else{
+    var leftLon = parseFloat(ui.url.get('llong'));
+    var leftLat = parseFloat(ui.url.get('llat'));
+    var rightLon = parseFloat(ui.url.get('rlong'));
+    var rightLat = parseFloat(ui.url.get('rlat'));
+    
+    aoi = ee.Geometry.Rectangle(
+      [leftLon, leftLat, rightLon, rightLat],
+      null,
+      false  
+    );
+  }
   
   ui.util.setTimeout(function() {
     updateBothMapPanel();
