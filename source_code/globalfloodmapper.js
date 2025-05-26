@@ -4168,18 +4168,17 @@ var floodLegend = {
 // ===== Module: floodMapExport =====
 var floodMapExport = {
   // Define a function to smoothen the raster and export the shapefile
-  getFloodShpUrl: function(floodLayer, value, radius, aoi, cellSize, filename) {
+  getFloodShpUrl: function(floodLayer, radius, aoi, cellSize, filename) {
     // Define a boxcar or low-pass kernel.
     var boxcar = ee.Kernel.square({
       radius: radius, units: 'pixels', magnitude: 1
     });
     
-    // Smoothen and threshold the binary flood raster
-    var smooth_flood = floodLayer.eq(value).convolve(boxcar);
-    var smooth_flood_binary = smooth_flood.updateMask(smooth_flood.gt(0.5)).gt(0);
+    //low-confidence flood export
+    var low_flood = floodLayer.eq(1).or(floodLayer.eq(2)).convolve(boxcar);
+    var low_flood_binary = low_flood.updateMask(low_flood.gt(0.5)).gt(0);
     
-    // Vectorise the binary flood raster
-    var vectors = smooth_flood_binary.reduceToVectors({
+    var low_vectors = low_flood_binary.reduceToVectors({
       geometry: aoi,
       crs: floodLayer.projection(),
       scale: cellSize,
@@ -4189,88 +4188,99 @@ var floodMapExport = {
       maxPixels: 9e12
       });
     
-    // Convert the vector to feature collection
-    var flood_vector = ee.FeatureCollection(vectors);
+    var low_vector_features = ee.FeatureCollection(low_vectors);
     
     // print download url
-    var vector_url = flood_vector.getDownloadURL({
-      format: 'shp',  // Explicitly set the format
+    var low_vector_url = low_vector_features.getDownloadURL({
+      format: 'shp',
       filename: filename
     });
-  
-    return(vector_url);
+
+    Export.table.toDrive({
+      collection: low_vectors,
+      description: 'Flood_Map_SHP_LowConf',
+      folder:      'GFM_Flood_Exports',  
+      fileNamePrefix: 'SHP_flood_map_low',
+      fileFormat: 'SHP'
+    });
+
+    
+    //high-confidence flood export
+    var high_flood = floodLayer.eq(3).convolve(boxcar);
+    var high_flood_binary = high_flood.updateMask(high_flood.gt(0.5)).gt(0);
+    
+    var high_vectors = high_flood_binary.reduceToVectors({
+      geometry: aoi,
+      crs: floodLayer.projection(),
+      scale: cellSize,
+      geometryType: 'polygon',
+      eightConnected: false,
+      labelProperty: 'zone',
+      maxPixels: 9e12
+    });
+    
+    var high_vector_features = ee.FeatureCollection(high_vectors);
+    
+    // print download url
+    var high_vector_url = high_vector_features.getDownloadURL({
+      format: 'shp',
+      filename: filename
+    });
+
+    Export.table.toDrive({
+      collection: high_vectors,
+      description: 'Flood_Map_SHP_HighConf',
+      folder:      'GFM_Flood_Exports',  
+      fileNamePrefix: 'SHP_flood_map_high',
+      fileFormat: 'SHP'
+    });
+    
+    
+    return ee.List([low_vector_url, high_vector_url]);
   },
   
   // Define a function to smoothen the map and export the TIFF
-  getFloodTiffUrl: function(floodLayer, value, radius, aoi, cellSize, start_date) {
-    // Get the bounding box of the AOI
-    var bounds = aoi.bounds();
-    var coords = ee.List(bounds.coordinates().get(0));
+  getFloodTiffUrl: function(floodLayer, radius, aoi, cellSize, filename) {
   
-    // Extract coordinates for splitting
-    var minLon = ee.Number(ee.List(coords.get(0)).get(0));
-    var minLat = ee.Number(ee.List(coords.get(0)).get(1));
-    var maxLon = ee.Number(ee.List(coords.get(2)).get(0));
-    var maxLat = ee.Number(ee.List(coords.get(2)).get(1));
-  
-    // Calculate longitude and latitude intervals for splitting into a 2x5 grid
-    var lonStep = maxLon.subtract(minLon).divide(5); // 5 columns
-    var latStep = maxLat.subtract(minLat).divide(2); // 2 rows
-  
-    // Define 10 AOIs for a 2x5 grid
-    var subAois = [];
-    for (var row = 0; row < 2; row++) {
-      for (var col = 0; col < 5; col++) {
-        var subAoi = ee.Geometry.Rectangle([
-          minLon.add(lonStep.multiply(col)),         // Left longitude
-          minLat.add(latStep.multiply(row)),         // Bottom latitude
-          minLon.add(lonStep.multiply(col + 1)),     // Right longitude
-          minLat.add(latStep.multiply(row + 1))      // Top latitude
-        ]);
-        subAois.push(subAoi);
-      }
-    }
-  
-    // Process each sub-AOI and generate download URLs
-    var curlCommands = subAois.map(function(subAoi, index) {
-      // Define a boxcar or low-pass kernel
-      var boxcar = ee.Kernel.square({
-        radius: radius, units: 'pixels', magnitude: 1
-      });
-  
-      // Smoothen and threshold the binary flood raster
-      var smooth_flood = floodLayer.eq(value).convolve(boxcar);
-      var smooth_flood_binary = smooth_flood.updateMask(smooth_flood.gt(0.5)).gt(0);
-  
-      // Ensure the raster has the correct mask and bands for export
-      var flood_image = smooth_flood_binary.selfMask().rename('FloodMap');
-  
-      var filename = 'GFM_' +
-                    start_date[0].format('YYYYMMdd').getInfo() + '_' +
-                    start_date[1].format('YYYYMMdd').getInfo() + '_' +
-                    aoi.bounds().coordinates().get(0).getInfo()[0][1].toFixed(2) + '_' +
-                    aoi.bounds().coordinates().get(0).getInfo()[0][0].toFixed(2) + '_' +
-                    aoi.bounds().coordinates().get(0).getInfo()[2][1].toFixed(2) + '_' +
-                    aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2) + '_' +
-                    cellSize+'m_SR'+radius+'_'+(index+1);
-                    
-      // Generate the download URL for the GeoTIFF
-      var tiff_url = flood_image.getDownloadURL({
-        name: filename,
-        crs: 'EPSG:4326',
-        scale: cellSize,
-        region: subAoi,
-        format: 'GeoTIFF'
-      });
-  
-      // Generate the partial curl command for the link
-      return ' -L -o ' +filename + '.tif ' + tiff_url;
+    // Define a boxcar or low-pass kernel.
+    var boxcar = ee.Kernel.square({
+      radius: radius, units: 'pixels', magnitude: 1
     });
     
-    // Generate the combined curl command
-    var curlCommandsString = 'curl' + curlCommands.join('');
+    var visParams = {
+      min:     1,
+      max:     4,
+      palette: [
+        '#E3E3E3', // 0 - non-water; non-flood
+        '#F8E806', // 1 - VV only
+        '#F8E806', // 2 - VH only
+        '#D20103', // 3 - VV + VH
+        '#031DC9'  // 4 - Permanent open water
+      ]
+    };
+    var colored = floodLayer.visualize(visParams);
     
-    return curlCommandsString;
+    // download url
+    var tiff_url = colored.getDownloadURL({
+      region: aoi,
+      scale: cellSize,
+      crs: "EPSG:4326",
+      format: 'GEO_TIFF'         
+    });
+
+    Export.image.toDrive({
+      image: colored,   
+      description: 'Flood_Map_TIFF',
+      folder:      'GFM_Flood_Exports_TIFF',
+      fileNamePrefix: 'TIFF_Flood_Map',
+      region:      aoi,
+      scale:       cellSize,
+      crs:         "EPSG:4326",
+      fileFormat:  'GeoTIFF'      
+    });
+    
+    return tiff_url;
+  
   }
 };
 
@@ -4791,7 +4801,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
       style:{width: '100%'}});
     
     // Add button and link to download flood shapefile
-    var shp_label = ui.Label('SHP link', {shown: false});
+    
     var shp_download_button = ui.Button({
       label: 'SHP',
       onClick: function() {
@@ -4824,9 +4834,8 @@ function addLayerSelector(mapToChange, defaultValue, position) {
             var cellSizeValue = shpCellSizeSlider.getValue();
   
             var flood_image = rightMap.layers().get(2).getEeObject();
-            var vector_url = floodMapExport.getFloodShpUrl(
+            var urls = floodMapExport.getFloodShpUrl(
               flood_image,
-              smoothingValue,
               smoothingValue,
               aoi,
               cellSizeValue,
@@ -4839,10 +4848,22 @@ function addLayerSelector(mapToChange, defaultValue, position) {
                 aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2) + '_' +
                 cellSizeValue+'m_SR'+smoothingValue
             );
-  
-            shp_label.setUrl(vector_url);
-            shp_label.style().set({shown: true});
             
+            urls.evaluate(function(urlList){
+              var lowUrl = urlList[0];
+              var highUrl = urlList[1];
+              
+              var shp_label_1 = ui.Label('SHP link (Low Confidence)', {shown: true});
+              shp_label_1.setUrl(lowUrl);
+            
+              var shp_label_2 = ui.Label('SHP link (High Confidence)', {shown: true});
+              shp_label_2.setUrl(highUrl);
+
+              rightSubPanel2.add(shp_label_1);
+              rightSubPanel2.add(shp_label_2);
+
+            });
+
             shpSmoothingSliderLabel.style().set({shown: false});
             shpSmoothingSlider.style().set({shown: false});
             shpCellSizeLabel.style().set({shown: false});
@@ -4859,6 +4880,8 @@ function addLayerSelector(mapToChange, defaultValue, position) {
         exportControls.add(shpConfirmButton);
         rightSubPanel1.remove(exportControls);
         rightSubPanel1.add(exportControls);
+        
+        
       }
     });
     
@@ -4915,24 +4938,33 @@ function addLayerSelector(mapToChange, defaultValue, position) {
             var cellSizeValue = cellSizeSlider.getValue();
   
             var flood_image = rightMap.layers().get(2).getEeObject();
-            var tiff_urls = floodMapExport.getFloodTiffUrl(
+            var tiff_url = floodMapExport.getFloodTiffUrl(
               flood_image,
-              smoothingValue,
               smoothingValue,
               aoi,
               cellSizeValue,
-              start_date
+              'GFM_' +
+                start_date[0].format('YYYYMMdd').getInfo() + '_' +
+                start_date[1].format('YYYYMMdd').getInfo() + '_' +
+                aoi.bounds().coordinates().get(0).getInfo()[0][1].toFixed(2) + '_' +
+                aoi.bounds().coordinates().get(0).getInfo()[0][0].toFixed(2) + '_' +
+                aoi.bounds().coordinates().get(0).getInfo()[2][1].toFixed(2) + '_' +
+                aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2) + '_' +
+                cellSizeValue+'m_SR'+smoothingValue
             );
   
-            tiff_instructions_label.style().set({shown: true, stretch: 'horizontal', textAlign: 'left'});
-            tiff_download_label.setValue(tiff_urls);
-            tiff_download_label.style().set({shown: true, stretch: 'horizontal', textAlign: 'left'});
-            
+            var tiff_label = ui.Label('TIFF link', {shown: true});
+            tiff_label.setUrl(tiff_url);
+          
+            rightSubPanel2.add(tiff_label);
+
+
             smoothingSliderLabel.style().set({shown: false});
             smoothingSlider.style().set({shown: false});
             cellSizeLabel.style().set({shown: false});
             cellSizeSlider.style().set({shown: false});
             confirmButton.style().set({shown: false});
+          
           }
         });
         
@@ -4958,7 +4990,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
     rightSubPanel1.add(shp_download_button);
     rightSubPanel1.add(png_download_button);
     rightSubPanel1.add(tiff_download_button);
-    rightSubPanel2.add(shp_label);
+    
     rightSubPanel2.add(png_label);
     rightSubPanel2.add(tiff_instructions_label);
     rightSubPanel2.add(tiff_download_label);
