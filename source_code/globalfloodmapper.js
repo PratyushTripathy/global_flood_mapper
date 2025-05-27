@@ -5334,10 +5334,14 @@ function displayFloodImpactPortal(aoi) {
   
   var baseChange =
       [{featureType: 'all', stylers: [{saturation: -100}, {lightness: 45}]}];
-  floodMap.setOptions('baseChange', {'baseChange': baseChange});
+  //floodMap.setOptions('baseChange', {'baseChange': baseChange});
+  floodMap.setOptions('SATELLITE', {'SATELLITE': {
+    featureType: 'all',
+    elementType: 'labels',
+    stylers: [{visibility: 'off'}]
+  }});
   landcoverMap.setOptions('baseChange', {'baseChange': baseChange});
   populationMap.setOptions('baseChange', {'baseChange': baseChange});
-  
   
   // Clear map default UI elements
   floodMap.setControlVisibility({
@@ -5364,31 +5368,44 @@ function displayFloodImpactPortal(aoi) {
   
   // a function to add opaque flood extent to population and land cover maps
   // Reusable function to add a flood extent toggle to any map
-  function addFloodExtentToggle(map, floodImage, options) {
-    var visParams = options.visParams || {min: 0, max: 1, palette: ['black'], opacity: 0.7};
-    var initialVisibility = options.shown || false;
-    var label = options.label || 'Flood extent';
+  function addFloodExtentToggle(map, floodImage, otherImageLayer, otherImgLabel) {
+    var options = {
+      visParams: {min: 0, max: 1, palette: ['black'], opacity: 0.7},
+      label: 'Flood extent',
+      shown: false
+    };
+    var visParams = options.visParams
+    var initialVisibility = options.shown
+    var label = options.label
   
     // Create the layer
-    var floodLayer = ui.Map.Layer(floodImage, visParams, label, initialVisibility);
+    var floodLayer = ui.Map.Layer(floodImage.gt(0).selfMask(), visParams, label, initialVisibility);
+    
+    map.layers().add(otherImageLayer);
     map.layers().add(floodLayer);
   
     // Create the checkbox
-    var toggle = ui.Checkbox({
+    var toggle_flood = ui.Checkbox({
       label: label,
       value: initialVisibility,
       onChange: function(checked) {
         floodLayer.setShown(checked);
       }
     });
+    var toggle_other_image = ui.Checkbox({
+      label: otherImgLabel,
+      value: true,
+      onChange: function(checked) {
+        otherImageLayer.setShown(checked);
+      }
+    });
   
     // Add checkbox panel to top-right
     var togglePanel = ui.Panel({
-      widgets: [toggle],
+      widgets: [toggle_flood, toggle_other_image],
       style: {
         position: 'top-right',
-        padding: '4px',
-        //backgroundColor: 'white'
+        padding: '0px',
         backgroundColor: 'rgba(255, 255, 255, 0.6)'
       }
     });
@@ -5411,7 +5428,7 @@ function displayFloodImpactPortal(aoi) {
   
   var chartTitle = ui.Label('Flood Impact', {fontWeight: 'bold', fontSize: '16px', padding: '0px'});
   chartPanel.add(chartTitle);
-  
+    
   // Link the maps to navigate in sync
   var linkMaps = function() {
     var linkingBounds = ui.Map.Linker([floodMap, landcoverMap, populationMap]);
@@ -5429,8 +5446,11 @@ function displayFloodImpactPortal(aoi) {
     palette: redPalette
   };
   
-  floodMap.addLayer(floodDepth, floodVis, 'Flood Depth');
-  
+  var floodDepthLayer = ui.Map.Layer(floodDepth, floodVis, 'Flood Depth', true);
+  //floodMap.addLayer(floodDepth, floodVis, 'Flood Depth');
+  //floodMap.layers().add(floodDepthLayer);
+  addFloodExtentToggle(floodMap, flood, floodDepthLayer, 'Flood Depth');
+
   // Land cover map
   var worldCoverVis = {
     bands: ['Map'],
@@ -5451,14 +5471,8 @@ function displayFloodImpactPortal(aoi) {
     ]
   };
   
-  landcoverMap.addLayer(landcover, worldCoverVis, 'Land Cover');
-  addFloodExtentToggle(landcoverMap, flood, {
-    visParams: {min: 0, max: 1, palette: ['black'], opacity: 0.7},
-    label: 'Flood extent',
-    shown: false
-  });
-  
-  
+  var landCoverLayer = ui.Map.Layer(landcover, worldCoverVis, 'Land Cover', true);
+  addFloodExtentToggle(landcoverMap, flood, landCoverLayer, 'Land Cover');
   
   // Population map
   var populationVis = {
@@ -5485,7 +5499,7 @@ function displayFloodImpactPortal(aoi) {
   var label = 'Flood extent';
   
   // Create the layer
-  var floodLayer = ui.Map.Layer(flood, visParams, label, initialVisibility);
+  var floodLayer = ui.Map.Layer(flood.gt(0).selfMask(), visParams, label, initialVisibility);
   
   var floodCheckbox = ui.Checkbox({
     label: 'Flood extent',
@@ -5505,8 +5519,8 @@ function displayFloodImpactPortal(aoi) {
       // Add the selected population layer.
       populationMap.addLayer(populationDatasets[selected], populationVis, selected);
       // Also check the state of the flood checkbox.
-      floodLayer = ui.Map.Layer(flood, visParams, label, floodCheckbox.getValue());
-      populationMap.layers().add(floodLayer)
+      floodLayer = ui.Map.Layer(flood.gt(0).selfMask(), visParams, label, floodCheckbox.getValue());
+      populationMap.layers().add(floodLayer);
     }
   });
   
@@ -5521,7 +5535,7 @@ function displayFloodImpactPortal(aoi) {
   // Initially add the default population layer.
   populationMap.addLayer(populationDatasets[populationSelect.getValue()], populationVis, populationSelect.getValue());
   populationMap.layers().add(floodLayer);
-  
+
   // Add the donut chart to the bottom right panel
   function prepareChartData() {
     var worldCoverClasses = {
@@ -5550,8 +5564,10 @@ function displayFloodImpactPortal(aoi) {
       90: '#0096a0',
       95: '#00cf75',
       100: '#fae6a0'
-    };
+    };    
     
+    
+    // Evaluate the chart data on the server
     // Evaluate the chart data on the server
     chartData.evaluate(function(data) {
       // Format the data for the chart
@@ -5586,6 +5602,7 @@ function displayFloodImpactPortal(aoi) {
             height: '100%'
           }
         });
+      
         
       // Build a bar chart (column chart) with vertical x-axis labels
       var pop_chart = ui.Chart.feature.byFeature({
@@ -5683,6 +5700,7 @@ function displayFloodImpactPortal(aoi) {
       layout: ui.Panel.Layout.Flow('horizontal')
     });
   };
+
   
   floodLegend.add(ui.Label('Depth', {fontWeight: 'bold'}));
   
