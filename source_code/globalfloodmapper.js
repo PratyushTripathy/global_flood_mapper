@@ -5155,8 +5155,7 @@ function displayFloodImpactPortal(aoi) {
   var hrslpop = ee.ImageCollection("projects/sat-io/open-datasets/hrsl/hrslpop")
                   .mosaic().clip(aoi);
   var landscan = ee.ImageCollection('projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL')
-                   .sort('system:time_start', false).first().clip(aoi); // take the latest year
-  
+                   .sort('system:time_start', false).first().clip(aoi);
   
   // -------------------------
   // Reprojection Helper Function
@@ -5172,8 +5171,7 @@ function displayFloodImpactPortal(aoi) {
   worldpop = reproject_image(worldpop, 92.77);
   hrslpop = reproject_image(hrslpop, 30);
   landscan = reproject_image(landscan, 1000);
-  
-  
+
   ///////////////////////////
   // Calculate flood depth //
   ///////////////////////////
@@ -5216,25 +5214,38 @@ function displayFloodImpactPortal(aoi) {
   
   // get flood depth range to use later for visualization
   var stats = floodDepth.reduceRegion({
-    reducer: ee.Reducer.percentile([0, 98]),  // 0 = min, 90th percentile
+    reducer: ee.Reducer.percentile([0, 98]), // 0 = min, 90th percentile
     geometry: aoi,
     scale: 100,
-    maxPixels: 1e8
+    maxPixels: 1e8,
+    bestEffort: true  
   });
   var minDepth = ee.Number(stats.get('FwDET_GEE_p0'));
   var maxDepth = ee.Number(stats.get('FwDET_GEE_p98'));
   
   
   // Calculate flood affected land cover area
-  var maskedLC = landcover.updateMask(flood.eq(1));
-  var area = ee.Image.pixelArea().reproject(landcover.projection());
+  // Use a coarser scale for large AOIs
+  //var areaSize = aoi.area();
+  //var computeScale = ee.Number(areaSize).divide(1e6).sqrt().multiply(10).max(30); // Dynamic scale based on AOI size
+  
+  // Create binary flood mask - include all flood classes (1, 2, 3)
+  var floodBinary = flood.gte(1).and(flood.lte(3));
+  
+  // Calculate area more efficiently
+  var maskedLC = landcover.updateMask(floodBinary);
+  var area = ee.Image.pixelArea();
   var joined = area.addBands(maskedLC);
+  
   var stats = joined.reduceRegion({
     reducer: ee.Reducer.sum().group({groupField: 1, groupName: 'landcover'}),
     geometry: aoi,
-    scale: 10,
-    maxPixels: 1e13
+    scale: 500, //computeScale,  // Use dynamic scale
+    maxPixels: 1e13,
+    bestEffort: true,
+    tileScale: 4  
   });
+  
   var chartData = ee.List(stats.get('groups')).map(function(d) {
     d = ee.Dictionary(d);
     return [d.get('landcover'), d.get('sum')];
@@ -5243,18 +5254,24 @@ function displayFloodImpactPortal(aoi) {
   
   // Compute proportional affected population based on flood fraction per pop cell
   function getProportionalAffectedPopulation(popImage) {
-    var floodFraction = flood.reduceResolution({
-      reducer: ee.Reducer.mean(), bestEffort: true
-    }).reproject({
-      crs: popImage.projection(), scale: popImage.projection().nominalScale()
-    });
-    var affected = popImage.multiply(floodFraction);
-    return ee.Number(affected.reduceRegion({
+    // Use the native resolution of each population dataset
+    var popScale = popImage.projection().nominalScale();
+    
+    // Simple approach: directly mask population with flood
+    // This works well when flood resolution is finer than population resolution
+    var affectedPop = popImage.updateMask(floodBinary);
+    
+    // Sum the affected population
+    var totalAffected = affectedPop.reduceRegion({
       reducer: ee.Reducer.sum(),
       geometry: aoi,
-      scale: popImage.projection().nominalScale(),
-      maxPixels: 1e13
-    }).values().get(0)).round();
+      scale: popScale,
+      maxPixels: 1e13,
+      bestEffort: true,
+      tileScale: 4
+    });
+    
+    return ee.Number(totalAffected.values().get(0)).round();
   }
   
   // Create a FeatureCollection with each dataset's affected population
@@ -5268,7 +5285,7 @@ function displayFloodImpactPortal(aoi) {
   
   // After calculating the affected population, remove zero values from the population layers
   function mask_pop(image){
-    return image.updateMask(image.gt(0));
+    return image.updateMask(image.gte(0));
   }
   
   ghspop = mask_pop(ghspop);
@@ -5759,6 +5776,7 @@ function displayFloodImpactPortal(aoi) {
   popLegend.add(makeRow('#ff4d4d', 'Very High'));
   
   populationMap.add(popLegend);
+
 }
 
 var leftPiece = ui.Panel(
