@@ -5686,8 +5686,7 @@ function displayFloodImpactPortal(aoi) {
   prepareChartData();
   
   // Set a center location for all maps (automatically updates all maps due to linking)
-  var center = flood.geometry().centroid();
-  floodMap.centerObject(center, 8);
+  floodMap.centerObject(aoi);
   
   // Add legends
   // Flood legend
@@ -5776,7 +5775,7 @@ function displayFloodImpactPortal(aoi) {
   popLegend.add(makeRow('#ff4d4d', 'Very High'));
   
   populationMap.add(popLegend);
-
+  
 }
 
 var leftPiece = ui.Panel(
@@ -5844,8 +5843,4 @@ if(ui.url.get('pfd0', null) !== null) {
     );
   }
   
-  ui.util.setTimeout(function() {
-    updateBothMapPanel();
-  }, 1000);
-
 }
