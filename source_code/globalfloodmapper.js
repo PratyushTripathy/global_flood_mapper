@@ -4265,8 +4265,9 @@ var floodMapExport = {
       region: aoi,
       scale: cellSize,
       crs: "EPSG:4326",
-      format: 'GEO_TIFF'         
-    });
+      format: 'GEO_TIFF',
+      }
+    );
 
     Export.image.toDrive({
       image: colored,   
@@ -4820,7 +4821,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
         var shpCellSizeLabel = ui.Label('Cell Size');
         var shpCellSizeSlider = ui.Slider({
           min: 10,
-          max: 500,
+          max: 1000,
           value: 100,
           step: 10,
           style: {width: '100%'},
@@ -4923,8 +4924,8 @@ function addLayerSelector(mapToChange, defaultValue, position) {
         // Cell Size Slider (affects the cell size)
         var cellSizeLabel = ui.Label('Cell Size');
         var cellSizeSlider = ui.Slider({
-          min: 100,
-          max: 700,
+          min: 10,
+          max: 1000,
           value: 400,
           step: 10,
           style: {width: '100%'},
