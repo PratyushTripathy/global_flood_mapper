@@ -4265,8 +4265,9 @@ var floodMapExport = {
       region: aoi,
       scale: cellSize,
       crs: "EPSG:4326",
-      format: 'GEO_TIFF'         
-    });
+      format: 'GEO_TIFF',
+      }
+    );
 
     Export.image.toDrive({
       image: colored,   
@@ -4820,7 +4821,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
         var shpCellSizeLabel = ui.Label('Cell Size');
         var shpCellSizeSlider = ui.Slider({
           min: 10,
-          max: 500,
+          max: 1000,
           value: 100,
           step: 10,
           style: {width: '100%'},
@@ -4923,8 +4924,8 @@ function addLayerSelector(mapToChange, defaultValue, position) {
         // Cell Size Slider (affects the cell size)
         var cellSizeLabel = ui.Label('Cell Size');
         var cellSizeSlider = ui.Slider({
-          min: 100,
-          max: 700,
+          min: 10,
+          max: 1000,
           value: 400,
           step: 10,
           style: {width: '100%'},
@@ -5099,7 +5100,13 @@ function updateLink(stateName, countryName) {
     'sd0': advance_days[0], //before flood succeeding days
     'sd1': advance_days[1], // during flood succeeding days      
     'state': stateName,
-    'country': countryName
+    'country': countryName,
+    'zvv': zvv_thd_text.getValue(),
+    'zvh': zvh_thd_text.getValue(),
+    'pow': pow_thd_text.getValue(),
+    'pass': pass_dd.getValue(),
+    'elev': elev_thd_text.getValue(),
+    'slp': slp_thd_text.getValue()
     });
   }
   else {
@@ -5113,7 +5120,13 @@ function updateLink(stateName, countryName) {
       'llat': aoi.bounds().coordinates().get(0).getInfo()[0][1].toFixed(2), //aoi left latitude
       'llong': aoi.bounds().coordinates().get(0).getInfo()[0][0].toFixed(2), //aoi left longitude
       'rlat': aoi.bounds().coordinates().get(0).getInfo()[2][1].toFixed(2), //aoi right latitude
-      'rlong': aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2) //aoi right longitude
+      'rlong': aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2), //aoi right longitude
+      'zvv': zvv_thd_text.getValue(),
+      'zvh': zvh_thd_text.getValue(),
+      'pow': pow_thd_text.getValue(),
+      'pass': pass_dd.getValue(),
+      'elev': elev_thd_text.getValue(),
+      'slp': slp_thd_text.getValue()
     });
   }
 }
@@ -5843,4 +5856,10 @@ if(ui.url.get('pfd0', null) !== null) {
     );
   }
   
+  zvv_thd_text.setValue(ui.url.get('zvv'));
+  zvh_thd_text.setValue(ui.url.get('zvh'));
+  pow_thd_text.setValue(ui.url.get('pow'));
+  elev_thd_text.setValue(ui.url.get('elev'));
+  slp_thd_text.setValue(ui.url.get('slp'));
+  pass_dd.setValue(ui.url.get('pass'));
 }
