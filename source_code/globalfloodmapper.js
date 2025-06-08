@@ -4322,7 +4322,7 @@ var mapFloods = {
     var ow = jrcwat.gte(ee.Image(pow_thd));
     
     // add elevation and slope masking
-    var elevation = ee.Image('USGS/SRTMGL1_003').select('elevation');
+    var elevation = ee.ImageCollection('COPERNICUS/DEM/GLO30').mosaic().select('DEM');
     var slope = ee.Terrain.slope(elevation);
   
     // Classify floods
@@ -4407,10 +4407,11 @@ function updateAoi(level_0, level_1, ret) {
     return(aoi);
   }
 }
-updateAoi('India', 'Bihar', false);
+
+aoi = ee.Geometry.BBox(-52.177192102371905, -30.292846470131966, -50.935737024246905, -29.683855669778126);	
 
 // Define a default start date
-var start_date = [ee.Date('2020-05-01'), ee.Date('2020-07-20')];
+var start_date = [ee.Date('2020-05-01'), ee.Date('2024-05-08')];
 
 var advance_days;
 if(ui.url.get('pfd0', null) !== null) {
@@ -5046,6 +5047,9 @@ right_panel = right_panel[0];
 
 var main_panel = [left_panel, right_panel];
 
+updateBothMapPanel();
+
+
 // Create a function that takes the checkbox boolean
 // value of the two layers of both the maps and updates
 // the variable. This function will be called before the 
@@ -5253,7 +5257,7 @@ function displayFloodImpactPortal(aoi) {
   var stats = joined.reduceRegion({
     reducer: ee.Reducer.sum().group({groupField: 1, groupName: 'landcover'}),
     geometry: aoi,
-    scale: 500, //computeScale,  // Use dynamic scale
+    scale: 500, 
     maxPixels: 1e13,
     bestEffort: true,
     tileScale: 4  
@@ -5298,7 +5302,7 @@ function displayFloodImpactPortal(aoi) {
   
   // After calculating the affected population, remove zero values from the population layers
   function mask_pop(image){
-    return image.updateMask(image.gte(0));
+    return image.updateMask(image.gte(0)).selfMask();
   }
   
   ghspop = mask_pop(ghspop);
@@ -5557,7 +5561,7 @@ function displayFloodImpactPortal(aoi) {
   
   // Create a panel that holds both widgets.
   var popOptionsPanel = ui.Panel({
-    widgets: [populationSelect, floodCheckbox],
+    widgets: [floodCheckbox, populationSelect],
     style: {position: 'top-right', padding: '2px', backgroundColor: 'rgba(255, 255, 255, 0.6)'}
   });
   populationMap.add(popOptionsPanel);
@@ -5691,15 +5695,16 @@ function displayFloodImpactPortal(aoi) {
       chartPanel.add(chartLegendRow);
       chartPanel.add(ui.Label('Note: You can download all the data displayed here by running the script of this app in GEE code editor. Please find the full source script on the GitHub repository: https://github.com/PratyushTripathy/global_flood_mapper'));
   
-      
+      chartPanel.add(ui.Label({
+        value: 'Return to GFM',
+        targetUrl: 'https://gfm-updates.projects.earthengine.app/view/globalfloodmapper-v2'
+        }));
     });
   }
   
   // Call the function to create the chart
   prepareChartData();
   
-  // Set a center location for all maps (automatically updates all maps due to linking)
-  floodMap.centerObject(aoi);
   
   // Add legends
   // Flood legend
@@ -5789,6 +5794,9 @@ function displayFloodImpactPortal(aoi) {
   
   populationMap.add(popLegend);
   
+  // Set a center location for all maps (automatically updates all maps due to linking)
+  floodMap.centerObject(aoi);
+
 }
 
 var leftPiece = ui.Panel(
