@@ -4408,7 +4408,7 @@ function updateAoi(level_0, level_1, ret) {
   }
 }
 
-aoi = ee.Geometry.BBox(-52.177192102371905, -30.292846470131966, -50.935737024246905, -29.683855669778126);	
+aoi = ee.Geometry.BBox(-51.614718769210214, -30.026983088996428, -51.15466627897584, -29.818991150568596);
 
 // Define a default start date
 var start_date = [ee.Date('2020-05-01'), ee.Date('2024-05-08')];
@@ -4547,7 +4547,7 @@ function maskS2clouds(image) {
 }
 
 function getSentinel2WithinDateRange(date, span) {
-  var sentinel2 = ee.ImageCollection('COPERNICUS/S2')
+  var sentinel2 = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
                     .filterBounds(aoi)
                     .filterDate(date, date.advance(span+1, 'day'))
                     .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 70))
@@ -5512,7 +5512,7 @@ function displayFloodImpactPortal(aoi) {
   var populationVis = {
     min: 0,
     max: 100,
-    palette: ['#d4f0ff', '#a1d6ff', '#ffe87c', '#ffa552', '#ff4d4d']
+    palette: ['#472836', '#9AD2CB', '#ffe87c', '#ffa552', '#ff4d4d']
   };
   
   //populationMap.addLayer(ghspop, populationVis, 'Population');
@@ -5786,8 +5786,8 @@ function displayFloodImpactPortal(aoi) {
   var popLegendTitle = ui.Label('People per pixel', {fontWeight: 'bold'});
   popLegend.add(popLegendTitle);
   
-  popLegend.add(makeRow('#d4f0ff', 'Very Low'));
-  popLegend.add(makeRow('#a1d6ff', 'Low'));
+  popLegend.add(makeRow('#472836', 'Very Low'));
+  popLegend.add(makeRow('#9AD2CB', 'Low'));
   popLegend.add(makeRow('#ffe87c', 'Medium'));
   popLegend.add(makeRow('#ffa552', 'High'));
   popLegend.add(makeRow('#ff4d4d', 'Very High'));
@@ -5795,8 +5795,7 @@ function displayFloodImpactPortal(aoi) {
   populationMap.add(popLegend);
   
   // Set a center location for all maps (automatically updates all maps due to linking)
-  floodMap.centerObject(aoi);
-
+  floodMap.centerObject(aoi, 11);
 }
 
 var leftPiece = ui.Panel(
@@ -5834,7 +5833,7 @@ var linker = ui.Map.Linker([leftMap, rightMap]);
 updateBothMapPanel();
 
 // Center on the default AOI
-leftMap.centerObject(aoi);
+leftMap.centerObject(aoi, 11);
 
 if(ui.url.get('pfd0', null) !== null) {
   var preFloodDate = ui.url.get('pfd0');
