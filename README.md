@@ -1,5 +1,5 @@
 # Global Flood Mapper (GFM) - Version 2
-This repository contains the source code and the link to the GFM Version 2. This version is a direct successor to GFM Version 1 ([access old GitHub repository here](https://github.com/PratyushTripathy/global_flood_mapper/tree/gfm-v1)).
+This repository contains the source code and the link to the GFM Version 2. This version is a direct successor to GFM Version 1 ([GFM-v1 code repository link](https://github.com/PratyushTripathy/global_flood_mapper/tree/gfm-v1)).
 
 You can read the details of the flood mapping method in the first article [here](https://link.springer.com/article/10.1007/s11069-022-05428-2). If you are interested in the details of the newly added impact assessment portal in GFM v2, please find the details in the second paper here [TBD]. If you use this tool for flood mapping or use the source code to implement in some other work, please cite references listed in the [suggested citation](#suggested-citation) section below.<br/>
 
