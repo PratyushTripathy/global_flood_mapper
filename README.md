@@ -14,7 +14,7 @@ The GIF below shows the GFM flood impact assessment portal: <br/>
 
 <strong>Note:</strong> If GFM does not load on your browser, please consider using Google Chrome.<br/>
 
-## Access GFM app [[using this URL](https://gfm-updates.projects.earthengine.app/view/globalfloodmapper-v2)]
+## Access GFM app [[using this URL](https://ptripathy.users.earthengine.app/view/global-flood-mapper-v2)]
 The GFM allows the user to quickly create high-precision flood maps by simply selecting the area of interest from the dropwown menu and selecting the dates for before and during floods. The flood map can be directly downloaded from the GFM either in PNG or KML format. The advanced options in the GFM enable the user to tweak parameters that influence the flood map. For instance, choosing between ascending/descending pass, the threshold for Z-value for VV and VH bands, water seasonality threshold, and the elevation and slope mask threshold.
 
 ## Add GFM repository to your GEE scripts
