@@ -6,7 +6,7 @@ You can read the details of the flood mapping method in the first article [here]
 GFM portal is quite intuitive but if you want a quick tutorial of how to use it, check out the usage [instructions](/instructions). Few examples of flood events around the globe can be found in [link](/examples).<br/>
 
 The GIF below shows the GFM flood mapping application: <br/>
-![](/media/gfmPortalGif.gif)
+![](/media/GFM-v2-floodmapping.gif)
 
 
 The GIF below shows the GFM flood impact assessment portal: <br/>
