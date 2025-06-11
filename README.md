@@ -10,7 +10,7 @@ The GIF below shows the GFM flood mapping application: <br/>
 
 
 The GIF below shows the GFM flood impact assessment portal: <br/>
-![](/media/gfmPortalGif.gif)
+![](/media/GFM-v2-impactassessment.gif)
 
 <strong>Note:</strong> If GFM does not load on your browser, please consider using Google Chrome.<br/>
 
