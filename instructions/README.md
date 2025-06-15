@@ -1,6 +1,6 @@
 # Recommended steps to generate the flood map: <br/>
 
-<img src="../media/gfm_screenshot.png" height="420" width="845">
+<img src="../media/GFM-v2-instructionspg1.png" height="420" width="845">
 
 1. Select the country and area from the drop-down menu highlighted in 1. Alternatively, the map extent can be used as the AOI by checking the checkbox. <br/>
 2. Select a date range of about one-two months before the floods. The start date and the number of succeeding days (defaults to 60). This should be selected in the option highlighted in 2.<br/>
