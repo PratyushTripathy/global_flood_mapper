@@ -1,6 +1,6 @@
 # Recommended steps to generate the flood map: <br/>
 
-<img src="../media/GFM-v2-instructionspg1.png" height="420" width="845">
+<img src="../media/GFM-v2-instructionspg1.png">
 
 1. Select the area of interest (AOI) for flood mapping. This can be done in two ways. 1) Select the country and state from the dropdown menu. 2) Draw a custom AOI by clicking the "Draw AOI" button. <br/>
 2. Select a date range of approximately one to two months before the floods. This is done with the pre-flood start date slider and the associated textbox for the number of succeeding days (defaults to 60). <br/>
@@ -10,7 +10,7 @@
 
 ## Advanced options <br/>
 
-<img src="../media/GFM-v2-instructionspg2.png" height="154" width="172">
+<img src="../media/GFM-v2-instructionspg2.png">
 
 6. The VV and VH thresholds can be tweaked, both default to -3. Increasing it to -2 or -1, etc. will result in a lot more cells in the flood category. <br/> 
 7. The valid range for the permanent open water (POW) threshold is 0 through 100, which defaults to 75. This can be tweaked to get desirable flood map. <br/>
@@ -31,7 +31,7 @@
 1. Click the "Get Shareable URL" button to save the existing parameters and/or share the flood extent map with other users.
 2. Click the "Launch Flood Impact Portal" button to get to the Flood Impact Portal.
 
-<img src="../media/GFM-v2-instructionspg3.png">
+<img src="../media/GFM-v2-instructionspg4.png">
 
 1. For the flood depth map, you can enable and disable both the flood depth map and the flood extent overlay.
 2. For the land cover map, you can enable and disable both the land cover map and the flood extent overlay.
