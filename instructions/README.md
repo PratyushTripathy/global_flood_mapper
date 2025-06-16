@@ -23,3 +23,18 @@
 
 <img src="../media/2016_Roscommon_Mistake.png" height="150" width="200">	<img src="../media/expl/2016_Roscommon.png" height="150" width="200"><br/>
 <img src="../media/legend_base.png" height="65" width="410"><br/>
+
+## Flood Impact Portal <br/>
+
+<img src="../media/GFM-v2-instructionspg3.png">
+
+1. Click the "Get Shareable URL" button to save the existing parameters and/or share the flood extent map with other users.
+2. Click the "Launch Flood Impact Portal" button to get to the Flood Impact Portal.
+
+<img src="../media/GFM-v2-instructionspg3.png">
+
+1. For the flood depth map, you can enable and disable both the flood depth map and the flood extent overlay.
+2. For the land cover map, you can enable and disable both the land cover map and the flood extent overlay.
+3. For the gridded population map, you can choose the dataset to use for the map calculations using the dropdown menu. You can also disable and enable the flood extent overlay.
+4. To download the impact maps, you must run the script of the app in the Google Earth Engine Code Editor. This will create a Google Drive export task to export the maps as TIFFs.
+5. Click the "Return to flood mapper" text to return to the Global Flood Mapper. 
