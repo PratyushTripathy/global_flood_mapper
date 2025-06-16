@@ -10,7 +10,7 @@
 
 ## Advanced options <br/>
 
-<img src="../media/GFM-v2-instructionspg2.png">
+<img src="../media/GFM-v2-instructionspg2.png" height="154" width="172">
 
 6. The VV and VH thresholds can be tweaked, both default to -3. Increasing it to -2 or -1, etc. will result in a lot more cells in the flood category. <br/> 
 7. The valid range for the permanent open water (POW) threshold is 0 through 100, which defaults to 75. This can be tweaked to get desirable flood map. <br/>
