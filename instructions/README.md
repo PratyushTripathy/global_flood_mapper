@@ -1,16 +1,16 @@
 # Recommended steps to generate the flood map: <br/>
 
-<img src="../media/gfm_screenshot.png" height="420" width="845">
+<img src="../media/GFM-v2-instructionspg1.png">
 
-1. Select the country and area from the drop-down menu highlighted in 1. Alternatively, the map extent can be used as the AOI by checking the checkbox. <br/>
-2. Select a date range of about one-two months before the floods. The start date and the number of succeeding days (defaults to 60). This should be selected in the option highlighted in 2.<br/>
-3. With some rough idea about the flood dates, select a date range as highlighted in 3. This should be the minimum number of days required to cover the area. The minimum number of scenes required to wholly cover an area should be determined by a test-and-trial approach, by trying out different values for the 'succeeding days' field.<br/>
-4. Switch off the flood map as shown in 4, toggle between the pre and during flood images using the slider in the centre. Check a few values for the during-flood date range and finalise one that shows the most difference visually while toggling. Water/sand appears dark in colour, but a change in black from pre and during image will only represent new water.<br/>
-5. Turn on the flood map. Click on the download button to get the extent as SHP or the exact same flood map as PNG, as shown in 5.<br/>
+1. Select the area of interest (AOI) for flood mapping. This can be done in two ways. 1) Select the country and state from the dropdown menu. 2) Draw a custom AOI by clicking the "Draw AOI" button. <br/>
+2. Select a date range of approximately one to two months before the floods. This is done with the pre-flood start date slider and the associated textbox for the number of succeeding days (defaults to 60). <br/>
+3. With some rough idea about the flood dates, select a date range. This should be the minimum number of days required to cover the area. The minimum number of scenes required to wholly cover an area should be determined by a test-and-trial approach, by trying out different values for the 'succeeding days' field. <br/>
+4. Switch off the flood map from the layers dropdown and toggle between the pre-flood image and the during-flood image using the slider in the center. Test a few values for the during-flood date range and finalize one that shows the most difference visually while toggling. Water/sand appears dark in color, but a change in black from the pre-flood image and during-flood image will only represent new water. Once finalized, turn on the flood map layer. <br/>
+5. Click on the download button to get the flood extent as a TIFF, SHP, or PNG file. <br/>
 
 ## Advanced options <br/>
 
-<img src="../media/gfm_advanced_screenshot.png" height="150" width="200">
+<img src="../media/GFM-v2-instructionspg2.png" height="154" width="172">
 
 6. The VV and VH thresholds can be tweaked, both default to -3. Increasing it to -2 or -1, etc. will result in a lot more cells in the flood category. <br/> 
 7. The valid range for the permanent open water (POW) threshold is 0 through 100, which defaults to 75. This can be tweaked to get desirable flood map. <br/>
@@ -23,3 +23,18 @@
 
 <img src="../media/2016_Roscommon_Mistake.png" height="150" width="200">	<img src="../media/expl/2016_Roscommon.png" height="150" width="200"><br/>
 <img src="../media/legend_base.png" height="65" width="410"><br/>
+
+## Flood Impact Portal <br/>
+
+<img src="../media/GFM-v2-instructionspg3.png">
+
+1. Click the "Get Shareable URL" button to save the existing parameters and/or share the flood extent map with other users.
+2. Click the "Launch Flood Impact Portal" button to get to the Flood Impact Portal.
+
+<img src="../media/GFM-v2-instructionspg4.png">
+
+1. For the flood depth map, you can enable and disable both the flood depth map and the flood extent overlay.
+2. For the land cover map, you can enable and disable both the land cover map and the flood extent overlay.
+3. For the gridded population map, you can choose the dataset to use for the map calculations using the dropdown menu. You can also disable and enable the flood extent overlay.
+4. To download the impact maps, you must run the script of the app in the Google Earth Engine Code Editor. This will create a Google Drive export task to export the maps as TIFFs.
+5. Click the "Return to flood mapper" text to return to the Global Flood Mapper. 
