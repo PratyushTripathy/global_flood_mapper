@@ -7,6 +7,8 @@ Pre flood date: 01 Oct 2015 + 30 days<br/>
 During flood date: 09 Jan 2016 + 0 days<br/>
 Asc/Desc: Ascending<br/>
 Max slope: 1<br/>
-<img src="../../media/expl/2016_Roscommon.png" height="455" width="700"><br/>
-<img src="../../media/legend.png" height="55" width="730"><br/>
+URL: https://gfm-updates.projects.earthengine.app/view/globalfloodmapper-v2#pfd0=2015-10-01;pfd1=2015-10-31;dfd0=2016-01-09;dfd1=2016-01-09;sd0=30;sd1=0;llat=53.07;llong=-8.47;rlat=53.57;rlong=-7.65;zvv=-3;zvh=-3;pow=75;pass=Ascending;elev=900;slp=1;<br/>
+
+<img src="../../media/expl/GFMv2_Ireland_2016.png"><br/>
+<img src="../../media/gfmv2-legend.png" height="103" width="172"><br/>
 
