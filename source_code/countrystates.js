@@ -1,6 +1,17 @@
+/*
+Global Flood Mapper (GFM) Version 2
+
+This script precomputes dictionary containing country names
+and their constituting sub-regions. We use FAO GAUL 2015
+admin level 1 polygons for this.
+
+Find information about the GFM project on the GitHub repository:
+https://github.com/PratyushTripathy/global_flood_mapper
+*/
+
 function getAdminBoundaryNames(){
   
-  var aoi = ee.FeatureCollection("FAO/GAUL/2015/level2");
+  var aoi = ee.FeatureCollection("FAO/GAUL/2015/level1");
   
   //Extract the list of countries from the global boundary layer
   var country = ee.List(aoi.reduceColumns(ee.Reducer.toList(), ['ADM0_NAME']).get('list')).distinct()
@@ -10,27 +21,19 @@ function getAdminBoundaryNames(){
   function get_level1_list(level_0_name){
     var level_0_filtered = aoi.filter(ee.Filter.equals('ADM0_NAME', level_0_name));
     var level_1_list = ee.List(level_0_filtered.reduceColumns(ee.Reducer.toList(), ['ADM1_NAME']).get('list')).distinct().sort();
-    //return level_1_list;
     
-    // Create a function to map on the states names
-    // list and get the names of all the districts
-    function get_level2_list(level_1_name){
-      var level_1_filtered = level_0_filtered.filter(ee.Filter.equals('ADM1_NAME', level_1_name));
-      var level_2_list = ee.List(level_1_filtered.reduceColumns(ee.Reducer.toList(), ['ADM2_NAME']).get('list')).distinct().sort();
-      return level_2_list;
-    }
-    //return ee.Dictionary.fromLists(level_1_list, level_1_list.map(get_level2_list));
     return level_1_list;
   }
   
   return ee.Dictionary.fromLists(country, country.map(get_level1_list));
-  //print(country_state_district)
-  
-  //var filtered = aoi.filter(ee.Filter.equals('ADM0_NAME', 'India'));
-  //filtered = filtered.filter(ee.Filter.equals('ADM1_NAME', 'Karnataka'));
 }
-//var country_state_district = getAdminBoundaryNames()
-//print(country_state_district)
+
+/*
+Run the below part to print the dictionary in the console. 
+Once printed, paste it below to re-use it.
+*/
+//var country_states = getAdminBoundaryNames();
+//print(country_states);
 
 var country_names = {
   "Abyei": [
