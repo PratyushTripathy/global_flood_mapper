@@ -1404,20 +1404,25 @@ function displayFloodImpactPortal(aoi) {
     stretch: 'horizontal',
     textAlign: 'center',
     fontWeight: 'bold',
-    fontSize: '20px',
-    margin: '10px 0px 10px 0px'
+    fontSize: '18px',
+    margin: '2px 0px 4px 0px'
   });
-  mainPanel.add(portalTitle);
+  
+  var titleRow = ui.Panel({
+    layout: ui.Panel.Layout.Flow('horizontal'),
+    style: {width: '100%', height: '4%'}
+  });
+  titleRow.add(portalTitle);
 
   // Create top row and bottom row panels
   var topRow = ui.Panel({
     layout: ui.Panel.Layout.Flow('horizontal'),
-    style: {width: '100%', height: '50%'}
+    style: {width: '100%', height: '48%'}
   });
   
   var bottomRow = ui.Panel({
     layout: ui.Panel.Layout.Flow('horizontal'),
-    style: {width: '100%', height: '50%'}
+    style: {width: '100%', height: '48%'}
   });
   
   // Create the four panels for our 2x2 grid
@@ -1442,6 +1447,7 @@ function displayFloodImpactPortal(aoi) {
   
   
   // Add rows to main panel
+  mainPanel.add(titleRow);
   mainPanel.add(topRow);
   mainPanel.add(bottomRow);
   
@@ -1773,7 +1779,7 @@ function displayFloodImpactPortal(aoi) {
         shown: true
       });
       
-      // Add populaiton chart to a panel with padding
+      // Add population chart to a panel with padding
       var pop_chartBox = ui.Panel([pop_chart], null, {
         stretch: 'horizontal',
         padding: '0px',
@@ -1789,51 +1795,45 @@ function displayFloodImpactPortal(aoi) {
       chartPanel.add(chartLegendRow);
       chartPanel.add(ui.Label('Note: You can download all the data displayed here by running the script of this app in GEE code editor. Please find the full source script on the GitHub repository: https://github.com/PratyushTripathy/global_flood_mapper'));
   
-      chartPanel.add(ui.Button({
-        label: 'Download Impact Maps',
-        onClick: function(){
-          // export flood depth map
-          Export.image.toDrive({
-            image: floodDepth.visualize(floodVis),   
-            description: 'Flood_Depth_Map',
-            folder:      'GFM_Map_Exports',
-            fileNamePrefix: 'Flood_Depth_Map',
-            region:      aoi,
-            scale:       10,
-            crs:         "EPSG:4326",
-            fileFormat:  'GeoTIFF'      
-          });
-          
-          // export land cover map
-          Export.image.toDrive({
-            image: landcover.visualize(worldCoverVis),   
-            description: 'Land_Cover_Map',
-            folder:      'GFM_Map_Exports',
-            fileNamePrefix: 'Land_Cover_Map',
-            region:      aoi,
-            scale:       10,
-            crs:         "EPSG:4326",
-            fileFormat:  'GeoTIFF'      
-          });
-          
-          // export population map
-          Export.image.toDrive({
-            image: populationDatasets[populationSelect.getValue()].visualize(populationVis),   
-            description: 'Gridded_Population_Map',
-            folder:      'GFM_Map_Exports',
-            fileNamePrefix: 'Gridded_Population_Map',
-            region:      aoi,
-            scale:       10,
-            crs:         "EPSG:4326",
-            fileFormat:  'GeoTIFF'      
-          });
-        }
-      }));
+      // export flood depth map
+      Export.image.toDrive({
+        image: floodDepth.visualize(floodVis),   
+        description: 'Flood_Depth_Map',
+        folder:      'GFM_Map_Exports',
+        fileNamePrefix: 'Flood_Depth_Map',
+        region:      aoi,
+        scale:       10,
+        crs:         "EPSG:4326",
+        fileFormat:  'GeoTIFF'      
+      });
       
+      // export land cover map
+      Export.image.toDrive({
+        image: landcover.visualize(worldCoverVis),   
+        description: 'Land_Cover_Map',
+        folder:      'GFM_Map_Exports',
+        fileNamePrefix: 'Land_Cover_Map',
+        region:      aoi,
+        scale:       10,
+        crs:         "EPSG:4326",
+        fileFormat:  'GeoTIFF'      
+      });
+      
+      // export population map
+      Export.image.toDrive({
+        image: populationDatasets[populationSelect.getValue()].visualize(populationVis),   
+        description: 'Gridded_Population_Map',
+        folder:      'GFM_Map_Exports',
+        fileNamePrefix: 'Gridded_Population_Map',
+        region:      aoi,
+        scale:       10,
+        crs:         "EPSG:4326",
+        fileFormat:  'GeoTIFF'      
+      });
       
       chartPanel.add(ui.Label({
         value: 'Return to flood mapper',
-        targetUrl: 'https://gfm-updates.projects.earthengine.app/view/globalfloodmapper-v2'
+        targetUrl: 'https://ptripathy.users.earthengine.app/view/global-flood-mapper-v2'
         }));
     });
   }
