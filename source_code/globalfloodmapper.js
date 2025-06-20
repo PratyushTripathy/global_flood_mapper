@@ -2114,7 +2114,7 @@ var linker = ui.Map.Linker([leftMap, rightMap]);
 updateBothMapPanel();
 
 // Center on the default AOI
-leftMap.centerObject(aoi, 11);
+leftMap.centerObject(aoi, 12);
 
 if(ui.url.get('pfd0', null) !== null) {
   var preFloodDate = ui.url.get('pfd0');
