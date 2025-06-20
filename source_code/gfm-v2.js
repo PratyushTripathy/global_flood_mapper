@@ -1,9 +1,17 @@
 /*
-Global Flood Mapper (GFM) v2 - Combined scripts version
-Scroll to "MAIN APPLICATION CODE" for the GFM UI code.
+Global Flood Mapper (GFM) Version 2
+
+We spent hours to build this for free, if you use the code
+or a part of it for your own work, please consider citing us.
+
+Find information on how to cite and more details about the 
+GFM project on this GitHub repository:
+https://github.com/PratyushTripathy/global_flood_mapper
+
 */
 
-var aoiFilter = require('users/aarnavagrawal/gfm-final:countrystates');
+// ===== Module: aoiFilter =====
+var aoiFilter = require('users/ptripathy/GlobalFloodMapper:countrystates');
 
 // ===== Module: availabilityGraph =====
 var availabilityGraph = {
