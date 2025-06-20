@@ -1381,7 +1381,7 @@ function displayFloodImpactPortal(aoi) {
   
   // After calculating the affected population, remove zero values from the population layers
   function mask_pop(image){
-    return image.updateMask(image.gte(0)).selfMask();
+    return image.updateMask(image).selfMask();
   }
   
   ghspop = mask_pop(ghspop);
@@ -1652,8 +1652,6 @@ function displayFloodImpactPortal(aoi) {
       populationMap.layers().add(floodLayer);
     }
   });
-  
-  
   // Create a panel that holds both widgets.
   var popOptionsPanel = ui.Panel({
     widgets: [floodCheckbox, populationSelect],
@@ -1666,8 +1664,28 @@ function displayFloodImpactPortal(aoi) {
   populationMap.layers().add(populationLayer);
   populationMap.layers().add(floodLayer);
 
-  // Add the donut chart to the bottom right panel
-  function prepareChartData() {
+  // Land cover legend
+  var lcLegend = ui.Panel({
+    style: {
+      stretch: 'vertical',
+      shown: true
+    }
+  });
+  
+  // Create a horizontal container for chart and legend
+  var chartLegendRow = ui.Panel({
+    layout: ui.Panel.Layout.Flow('horizontal'),
+    style: {
+      stretch: 'both',
+      width: '100%',
+      height: '70%',
+      padding: '5px 0 0 0'  // top, right, bottom, left
+    }
+  });
+    
+  // Evaluate the chart data on the server
+  chartData.evaluate(function(data) {
+    // Add the donut chart to the bottom right panel
     var worldCoverClasses = {
       10: 'Tree cover',
       20: 'Shrubland',
@@ -1694,152 +1712,289 @@ function displayFloodImpactPortal(aoi) {
       90: '#0096a0',
       95: '#00cf75',
       100: '#fae6a0'
-    };    
+    };  
+    
+    // Format the data for the chart
+    var dataTable = [['Land Cover', 'Area (km²)']];
+    var sliceColors = [];
+  
+    // Process each row of data
+    data.forEach(function(item) {
+      var classNumber = item[0];
+      var area = item[1] / 1e6; // Convert to square kilometers
+      var className = worldCoverClasses[classNumber] || 'Unknown';
+      
+      dataTable.push([className, area]);
+      sliceColors.push(landCoverColors[classNumber] || '#cccccc'); // fallback color
+    });
     
     
-    // Evaluate the chart data on the server
-    // Evaluate the chart data on the server
-    chartData.evaluate(function(data) {
-      // Format the data for the chart
-      var dataTable = [['Land Cover', 'Area (km²)']];
-      var sliceColors = [];
-      
-      // Process each row of data
-      data.forEach(function(item) {
-        var classNumber = item[0];
-        var area = item[1] / 1e6; // Convert to square kilometers
-        var className = worldCoverClasses[classNumber] || 'Unknown';
-        
-        dataTable.push([className, area]);
-        sliceColors.push(landCoverColors[classNumber] || '#cccccc'); // fallback color
-      });
-      
-      // Create and display the chart
-      var lc_chart = ui.Chart(dataTable)
-        .setChartType('PieChart')
-        .setOptions({
-          title: 'Affected land cover',
-          titleTextStyle: {fontSize: 14},
-          pieHole: 0.4,
-          legend: {position: 'none'},
-          colors: sliceColors,
-          chartArea: {
-            left: '0%',
-            right: '0%',
-            top: '10%',
-            bottom: '0%',
-            width: '10%',
-            height: '100%'
-          }
-        });
-      
-        
-      // Build a bar chart (column chart) with vertical x-axis labels
-      var pop_chart = ui.Chart.feature.byFeature({
-        features: affected_pop,
-        xProperty: 'dataset',
-        yProperties: ['High', 'Low']
-      })
-      .setChartType('ColumnChart')
+    
+    // Create and display the chart
+    var lc_chart = ui.Chart(dataTable)
+      .setChartType('PieChart')
       .setOptions({
-        title: 'Affected Population by Confidence Level',
+        title: 'Affected land cover',
         titleTextStyle: {fontSize: 14},
-        hAxis: {title: 'Population Dataset'},
-        vAxis: {title: 'No. of People Affected', format: 'short'},
-        isStacked: 'absolute',
-        legend: {position: 'top'},
-        colors: ['#D20103', 'F8E806']  // High = red, Low = yellow
-      });
-
-      
-      // Create a horizontal container for chart and legend
-      var chartLegendRow = ui.Panel({
-        layout: ui.Panel.Layout.Flow('horizontal'),
-        style: {
-          stretch: 'both',
-          width: '100%',
-          height: '70%',
-          padding: '5px 0 0 0'  // top, right, bottom, left
+        pieHole: 0.4,
+        legend: {position: 'none'},
+        colors: sliceColors,
+        chartArea: {
+          left: '0%',
+          right: '0%',
+          top: '10%',
+          bottom: '0%',
+          width: '10%',
+          height: '100%'
         }
       });
       
-      // Add land cover chart to a panel with padding
-      var lc_chartBox = ui.Panel([lc_chart], null, {
-        stretch: 'horizontal',
-        padding: '0px',
-        width: '30%'
-      });
-  
-      // Style the legend
-      lcLegend.style().set({
-        padding: '0px',
-        width: '25%',
-        maxHeight: '100%',
-        stretch: 'vertical',
-        shown: true
-      });
-      
-      // Add population chart to a panel with padding
-      var pop_chartBox = ui.Panel([pop_chart], null, {
-        stretch: 'horizontal',
-        padding: '0px',
-        width: '45%'  //
-      });
-  
-      // Add both chart and legend to horizontal row
-      chartLegendRow.add(lc_chartBox);
-      chartLegendRow.add(lcLegend);
-      chartLegendRow.add(pop_chartBox);
-      
-      // Add the combined panel to chartPanel
-      chartPanel.add(chartLegendRow);
-      chartPanel.add(ui.Label('Note: You can download all the data displayed here by running the script of this app in GEE code editor. Please find the full source script on the GitHub repository: https://github.com/PratyushTripathy/global_flood_mapper'));
-  
-      // export flood depth map
-      Export.image.toDrive({
-        image: floodDepth.visualize(floodVis),   
-        description: 'Flood_Depth_Map',
-        folder:      'GFM_Map_Exports',
-        fileNamePrefix: 'Flood_Depth_Map',
-        region:      aoi,
-        scale:       10,
-        crs:         "EPSG:4326",
-        fileFormat:  'GeoTIFF'      
-      });
-      
-      // export land cover map
-      Export.image.toDrive({
-        image: landcover.visualize(worldCoverVis),   
-        description: 'Land_Cover_Map',
-        folder:      'GFM_Map_Exports',
-        fileNamePrefix: 'Land_Cover_Map',
-        region:      aoi,
-        scale:       10,
-        crs:         "EPSG:4326",
-        fileFormat:  'GeoTIFF'      
-      });
-      
-      // export population map
-      Export.image.toDrive({
-        image: populationDatasets[populationSelect.getValue()].visualize(populationVis),   
-        description: 'Gridded_Population_Map',
-        folder:      'GFM_Map_Exports',
-        fileNamePrefix: 'Gridded_Population_Map',
-        region:      aoi,
-        scale:       10,
-        crs:         "EPSG:4326",
-        fileFormat:  'GeoTIFF'      
-      });
-      
-      chartPanel.add(ui.Label({
-        value: 'Return to flood mapper',
-        targetUrl: 'https://ptripathy.users.earthengine.app/view/global-flood-mapper-v2'
-        }));
+    
+    
+    // Add land cover chart to a panel with padding
+    var lc_chartBox = ui.Panel([lc_chart], null, {
+      stretch: 'horizontal',
+      padding: '0px',
+      width: '25%'
     });
-  }
   
-  // Call the function to create the chart
-  prepareChartData();
+    
+    // Style the legend
+    lcLegend.style().set({
+      padding: '0px',
+      width: '20%',
+      maxHeight: '100%',
+      stretch: 'vertical',
+      shown: true
+    });
+    
+    chartLegendRow.add(lc_chartBox);
+    chartLegendRow.add(lcLegend);
+
+  });
+    
+  
+    
+  var wpEarliestStart = ee.Date('2000-01-01'),
+      wpEarliestEnd   = ee.Date('2000-12-31'),
+      wpLatestStart   = ee.Date('2020-01-01'),
+      wpLatestEnd     = ee.Date('2020-12-31');
+  
+  var lsEarliestStart = ee.Date('2000-01-01'),
+      lsEarliestEnd   = ee.Date('2000-12-31'),
+      lsLatestStart   = ee.Date('2023-01-01'),
+      lsLatestEnd     = ee.Date('2023-12-30');
+  
+  var floodStartDate = start_date[1];
+  var floodEndDate   = floodStartDate.advance(advance_days[1], 'day');
+  
+  var beforeWP = floodStartDate.millis().lt(wpEarliestStart.millis())
+              .and(floodEndDate.millis().lt(wpEarliestStart.millis()));
+  var afterWP  = floodStartDate.millis().gt(wpLatestEnd.millis())
+              .and(floodEndDate.millis().gt(wpLatestEnd.millis()));
+  
+  var beforeLS = floodStartDate.millis().lt(lsEarliestStart.millis())
+              .and(floodEndDate.millis().lt(lsEarliestStart.millis()));
+  var afterLS  = floodStartDate.millis().gt(lsLatestEnd.millis())
+              .and(floodEndDate.millis().gt(lsLatestEnd.millis()));
+  
+  var worldPopStartDate = ee.Date(ee.Algorithms.If(
+    beforeWP, wpEarliestStart,
+    ee.Algorithms.If(afterWP, wpLatestStart, floodStartDate)
+  ));
+  var worldPopEndDate = ee.Date(ee.Algorithms.If(
+    beforeWP, wpEarliestEnd,
+    ee.Algorithms.If(afterWP, wpLatestEnd, floodEndDate)
+  ));
+  
+  var landScanStartDate = ee.Date(ee.Algorithms.If(
+    beforeLS, lsEarliestStart,
+    ee.Algorithms.If(afterLS, lsLatestStart, floodStartDate)
+  ));
+  var landScanEndDate = ee.Date(ee.Algorithms.If(
+    beforeLS, lsEarliestEnd,
+    ee.Algorithms.If(afterLS, lsLatestEnd, floodEndDate)
+  ));
+
+  
+  var popDatasets = {
+    'HRSL': reproject_image(ee.ImageCollection("projects/sat-io/open-datasets/hrsl/hrslpop").mosaic().clip(aoi), 30),
+    'WorldPop': reproject_image(ee.ImageCollection('WorldPop/GP/100m/pop')
+      .filterDate(worldPopStartDate, worldPopEndDate)
+      .mosaic()
+      .select('population')
+      .clip(aoi), 92.77),
+    'LandScan': ee.ImageCollection('projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL')
+      .filterDate(landScanStartDate, landScanEndDate)
+      .first()
+      .clip(aoi),
+    'GHS-POP 2005': reproject_image(ee.Image('JRC/GHSL/P2023A/GHS_POP/2005').clip(aoi), 100),
+    'GHS-POP 2010': reproject_image(ee.Image('JRC/GHSL/P2023A/GHS_POP/2010').clip(aoi), 100),
+    'GHS-POP 2015': reproject_image(ee.Image('JRC/GHSL/P2023A/GHS_POP/2015').clip(aoi), 100),
+    'GHS-POP 2020': reproject_image(ee.Image('JRC/GHSL/P2023A/GHS_POP/2020').clip(aoi), 100),
+    'GHS-POP 2025': reproject_image(ee.Image('JRC/GHSL/P2023A/GHS_POP/2025').clip(aoi), 100),
+    'GHS-POP 2030': reproject_image(ee.Image('JRC/GHSL/P2023A/GHS_POP/2030').clip(aoi), 100),
+    'GPW 2005': reproject_image(ee.Image('CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2005_30_sec').clip(aoi), 927.67),
+    'GPW 2010': reproject_image(ee.Image('CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2010_30_sec').clip(aoi), 927.67),
+    'GPW 2015': reproject_image(ee.Image('CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2015_30_sec').clip(aoi), 927.67),
+    'GPW 2020': reproject_image(ee.Image('CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2020_30_sec').clip(aoi), 927.67)
+  };
+  
+  
+  var allAffectedPopulation = ee.FeatureCollection(
+    Object.keys(popDatasets).map(function(key) {
+      return ee.Feature(null, {
+        dataset: key,
+        High: getProportionalHighConfidenceAffectedPopulation(popDatasets[key]),
+        Low: getProportionalLowConfidenceAffectedPopulation(popDatasets[key])
+      });
+    })
+  );
+    
+  var defaultChecked = ['LandScan', 'HRSL', 'WorldPop', 'GPW 2020', 'GHS-POP 2025'];
+
+  var checkboxes = Object.keys(popDatasets).map(function(label) {
+    var isDefault = defaultChecked.indexOf(label) !== -1;
+    return ui.Checkbox(label, isDefault);
+  });
+
+  // Create collapsible panel
+  var checkboxPanel = ui.Panel({
+    widgets: checkboxes,
+    layout: ui.Panel.Layout.flow('vertical'),
+    style: {shown: false, padding: '2px', backgroundColor: '#f0f0f0', maxHeight: '150px'}
+  });
+    
+  var toggleButton = ui.Button({
+    label: 'Select Population data ▼',
+    onClick: function() {
+      var isVisible = checkboxPanel.style().get('shown');
+      checkboxPanel.style().set('shown', !isVisible);
+  
+      // Update label
+      toggleButton.setLabel(isVisible ? 'Select Population data ▼' : 'Select Population data ▲');
+  
+      if (isVisible) {
+        updateBarChart();
+      }
+    }
+    
+  });
+    
+  var dropdownPanel = ui.Panel({
+    widgets: [toggleButton, checkboxPanel],
+    layout: ui.Panel.Layout.flow('vertical'),
+    style: {position: 'top-left', padding: '2px', width: '20%', fontSize: '11px', backgroundColor: 'rgba(255, 255, 255, 0.6)'}
+  });
+
+      
+  // Build a bar chart (column chart) with vertical x-axis labels
+  var pop_chart = ui.Chart.feature.byFeature({
+    features: allAffectedPopulation,
+    xProperty: 'dataset',
+    yProperties: ['High', 'Low']
+  })
+  .setChartType('ColumnChart')
+  .setOptions({
+    title: 'Affected Population by Confidence Level',
+    titleTextStyle: {fontSize: 14},
+    hAxis: {title: 'Population Dataset'},
+    vAxis: {title: 'No. of People Affected', format: 'short'},
+    isStacked: 'absolute',
+    legend: {position: 'top'},
+    colors: ['#D20103', 'F8E806']  // High = red, Low = yellow
+  });
+  
+  function getSelectedPopulation(){
+    var selectedLabels = checkboxes
+    .filter(function(cb) { return cb.getValue(); })
+    .map(function(cb) { return cb.getLabel(); });
+  
+    return allAffectedPopulation.filter(
+      ee.Filter.inList('dataset', ee.List(selectedLabels))
+    );
+  }
+  function updateBarChart(){
+    var filteredValues = getSelectedPopulation();
+    
+    var newChart = ui.Chart.feature.byFeature({
+      features: filteredValues,
+      xProperty: 'dataset',
+      yProperties: ['High', 'Low']
+    })
+    .setChartType('ColumnChart')
+    .setOptions({
+      title: 'Affected Population by Confidence Level',
+      titleTextStyle: {fontSize: 14},
+      hAxis: {title: 'Population Dataset'},
+      vAxis: {title: 'No. of People Affected', format: 'short'},
+      isStacked: 'absolute',
+      legend: {position: 'top'},
+      colors: ['#D20103', 'F8E806']  // High = red, Low = yellow
+    });
+    
+    pop_chartBox.clear();
+    pop_chartBox.add(newChart);
+  }
+
+  // Add population chart to a panel with padding
+  var pop_chartBox = ui.Panel([pop_chart], null, {
+    stretch: 'horizontal',
+    padding: '0px',
+    width: '35%'  
+  });
+
+  // Add both chart and legend to horizontal row
+  chartLegendRow.add(pop_chartBox);
+  chartLegendRow.add(dropdownPanel);
+  
+  // Add the combined panel to chartPanel
+  chartPanel.add(chartLegendRow);
+  chartPanel.add(ui.Label('Note: You can download all the data displayed here by running the script of this app in GEE code editor. Please find the full source script on the GitHub repository: https://github.com/PratyushTripathy/global_flood_mapper'));
+
+  updateBarChart();
+  
+  // export flood depth map
+  Export.image.toDrive({
+    image: floodDepth.visualize(floodVis),   
+    description: 'Flood_Depth_Map',
+    folder:      'GFM_Map_Exports',
+    fileNamePrefix: 'Flood_Depth_Map',
+    region:      aoi,
+    scale:       10,
+    crs:         "EPSG:4326",
+    fileFormat:  'GeoTIFF'      
+  });
+    
+  // export land cover map
+  Export.image.toDrive({
+    image: landcover.visualize(worldCoverVis),   
+    description: 'Land_Cover_Map',
+    folder:      'GFM_Map_Exports',
+    fileNamePrefix: 'Land_Cover_Map',
+    region:      aoi,
+    scale:       10,
+    crs:         "EPSG:4326",
+    fileFormat:  'GeoTIFF'      
+  });
+    
+  // export population map
+  Export.image.toDrive({
+    image: populationDatasets[populationSelect.getValue()].visualize(populationVis),   
+    description: 'Gridded_Population_Map',
+    folder:      'GFM_Map_Exports',
+    fileNamePrefix: 'Gridded_Population_Map',
+    region:      aoi,
+    scale:       10,
+    crs:         "EPSG:4326",
+    fileFormat:  'GeoTIFF'      
+  });
+  
+  chartPanel.add(ui.Label({
+    value: 'Return to flood mapper',
+    targetUrl: 'https://ptripathy.users.earthengine.app/view/global-flood-mapper-v2'
+  }));
+  
   
   
   // Add legends
@@ -1847,7 +2002,7 @@ function displayFloodImpactPortal(aoi) {
   var floodLegend = ui.Panel({
     style: {
       position: 'bottom-left',
-      padding: '8px 15px',
+      padding: '8px 10px',
       backgroundColor: 'rgba(255, 255, 255, 0.8)'
     }
   });
@@ -1872,6 +2027,18 @@ function displayFloodImpactPortal(aoi) {
   };
 
   
+  lcLegend.add(makeRow('#006400', 'Tree cover'));
+  lcLegend.add(makeRow('#ffbb22', 'Shrubland'));
+  lcLegend.add(makeRow('#ffff4c', 'Grassland'));
+  lcLegend.add(makeRow('#f096ff', 'Cropland'));
+  lcLegend.add(makeRow('#fa0000', 'Built-up'));
+  lcLegend.add(makeRow('#b4b4b4', 'Bare land'));
+  lcLegend.add(makeRow('#f0f0f0', 'Snow/ice'));
+  lcLegend.add(makeRow('#0064c8', 'Permanent water'));
+  lcLegend.add(makeRow('#0096a0', 'Herbaceous wetland'));
+  lcLegend.add(makeRow('#00cf75', 'Mangroves'));
+  lcLegend.add(makeRow('#fae6a0', 'Moss/lichen'));
+
   floodLegend.add(ui.Label('Depth', {fontWeight: 'bold'}));
   
   // Define red palette and labels
@@ -1885,28 +2052,6 @@ function displayFloodImpactPortal(aoi) {
   
   // Add flood depth legend
   floodMap.add(floodLegend);
-  
-  
-  // Land cover legend
-  var lcLegend = ui.Panel({
-    style: {
-      stretch: 'vertical',
-      shown: true
-    }
-  });
-  
-  
-  lcLegend.add(makeRow('#006400', 'Tree cover'));
-  lcLegend.add(makeRow('#ffbb22', 'Shrubland'));
-  lcLegend.add(makeRow('#ffff4c', 'Grassland'));
-  lcLegend.add(makeRow('#f096ff', 'Cropland'));
-  lcLegend.add(makeRow('#fa0000', 'Built-up'));
-  lcLegend.add(makeRow('#b4b4b4', 'Bare land'));
-  lcLegend.add(makeRow('#f0f0f0', 'Snow/ice'));
-  lcLegend.add(makeRow('#0064c8', 'Permanent water'));
-  lcLegend.add(makeRow('#0096a0', 'Herbaceous wetland'));
-  lcLegend.add(makeRow('#00cf75', 'Mangroves'));
-  lcLegend.add(makeRow('#fae6a0', 'Moss/lichen'));
   
   //landcoverMap.add(lcLegend);
   
