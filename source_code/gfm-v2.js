@@ -1361,35 +1361,35 @@ function displayFloodImpactPortal(aoi) {
   var affected_pop = ee.FeatureCollection([
     ee.Feature(null, {
       dataset: 'Landscan',
-      High: getProportionalHighConfidenceAffectedPopulation(landscan),
-      Low: getProportionalLowConfidenceAffectedPopulation(landscan)
+      "High Confidence Flood": getProportionalHighConfidenceAffectedPopulation(landscan),
+      "Low Confidence Flood": getProportionalLowConfidenceAffectedPopulation(landscan)
     }),
     ee.Feature(null, {
       dataset: 'HRSL',
-      High: getProportionalHighConfidenceAffectedPopulation(hrslpop),
-      Low: getProportionalLowConfidenceAffectedPopulation(hrslpop)
+      "High Confidence Flood": getProportionalHighConfidenceAffectedPopulation(hrslpop),
+      "Low Confidence Flood": getProportionalLowConfidenceAffectedPopulation(hrslpop)
     }),
     ee.Feature(null, {
       dataset: 'WorldPop',
-      High: getProportionalHighConfidenceAffectedPopulation(worldpop),
-      Low: getProportionalLowConfidenceAffectedPopulation(worldpop)
+      "High Confidence Flood": getProportionalHighConfidenceAffectedPopulation(worldpop),
+      "Low Confidence Flood": getProportionalLowConfidenceAffectedPopulation(worldpop)
     }),
     ee.Feature(null, {
       dataset: 'GPWv4',
-      High: getProportionalHighConfidenceAffectedPopulation(gpwpop),
-      Low: getProportionalLowConfidenceAffectedPopulation(gpwpop)
+      "High Confidence Flood": getProportionalHighConfidenceAffectedPopulation(gpwpop),
+      "Low Confidence Flood": getProportionalLowConfidenceAffectedPopulation(gpwpop)
     }),
     ee.Feature(null, {
       dataset: 'GHS-POP',
-      High: getProportionalHighConfidenceAffectedPopulation(ghspop),
-      Low: getProportionalLowConfidenceAffectedPopulation(ghspop)
+      "High Confidence Flood": getProportionalHighConfidenceAffectedPopulation(ghspop),
+      "Low Confidence Flood": getProportionalLowConfidenceAffectedPopulation(ghspop)
     })
   ]);
 
   
   // After calculating the affected population, remove zero values from the population layers
   function mask_pop(image){
-    return image.updateMask(image).selfMask();
+    return image.updateMask(image.gt(0));
   }
   
   ghspop = mask_pop(ghspop);
@@ -1412,25 +1412,25 @@ function displayFloodImpactPortal(aoi) {
     stretch: 'horizontal',
     textAlign: 'center',
     fontWeight: 'bold',
-    fontSize: '18px',
-    margin: '2px 0px 4px 0px'
+    fontSize: '16px',
+    margin: '1px 0px 1px 0px'
   });
   
   var titleRow = ui.Panel({
     layout: ui.Panel.Layout.Flow('horizontal'),
-    style: {width: '100%', height: '4%'}
+    style: {width: '100%', height: '3%'}
   });
   titleRow.add(portalTitle);
 
   // Create top row and bottom row panels
   var topRow = ui.Panel({
     layout: ui.Panel.Layout.Flow('horizontal'),
-    style: {width: '100%', height: '48%'}
+    style: {width: '100%', height: '48.5%'}
   });
   
   var bottomRow = ui.Panel({
     layout: ui.Panel.Layout.Flow('horizontal'),
-    style: {width: '100%', height: '48%'}
+    style: {width: '100%', height: '48.5%'}
   });
   
   // Create the four panels for our 2x2 grid
@@ -1550,19 +1550,19 @@ function displayFloodImpactPortal(aoi) {
   }
   
   // Add titles and maps to panels
-  var floodTitle = ui.Label('Flood Depth - 30 m', {fontWeight: 'bold', fontSize: '16px', padding: '0px'});
+  var floodTitle = ui.Label('Flood Depth - 30 m', {fontWeight: 'bold', fontSize: '14px', padding: '0px'});
   floodPanel.add(floodTitle);
   floodPanel.add(floodMap);
 
-  var landcoverTitle = ui.Label('ESA World Cover - 10 m', {fontWeight: 'bold', fontSize: '16px', padding: '0px'});
+  var landcoverTitle = ui.Label('ESA World Cover - 10 m', {fontWeight: 'bold', fontSize: '14px', padding: '0px'});
   landcoverPanel.add(landcoverTitle);
   landcoverPanel.add(landcoverMap);
   
-  var populationTitle = ui.Label('Gridded Population - various resolutions', {fontWeight: 'bold', fontSize: '16px', padding: '0px'});
+  var populationTitle = ui.Label('Gridded Population - various resolutions', {fontWeight: 'bold', fontSize: '14px', padding: '0px'});
   populationPanel.add(populationTitle);
   populationPanel.add(populationMap);
   
-  var chartTitle = ui.Label('Flood Impact', {fontWeight: 'bold', fontSize: '16px', padding: '0px'});
+  var chartTitle = ui.Label('Flood Impact', {fontWeight: 'bold', fontSize: '14px', padding: '0px'});
   chartPanel.add(chartTitle);
     
   // Link the maps to navigate in sync
@@ -1853,8 +1853,8 @@ function displayFloodImpactPortal(aoi) {
     Object.keys(popDatasets).map(function(key) {
       return ee.Feature(null, {
         dataset: key,
-        High: getProportionalHighConfidenceAffectedPopulation(popDatasets[key]),
-        Low: getProportionalLowConfidenceAffectedPopulation(popDatasets[key])
+        "High Confidence Flood": getProportionalHighConfidenceAffectedPopulation(popDatasets[key]),
+        "Low Confidence Flood": getProportionalLowConfidenceAffectedPopulation(popDatasets[key])
       });
     })
   );
@@ -1870,17 +1870,17 @@ function displayFloodImpactPortal(aoi) {
   var checkboxPanel = ui.Panel({
     widgets: checkboxes,
     layout: ui.Panel.Layout.flow('vertical'),
-    style: {shown: false, padding: '2px', backgroundColor: '#f0f0f0', maxHeight: '150px'}
+    style: {shown: false, padding: '0px', backgroundColor: '#f0f0f0', maxHeight: '150px'}
   });
     
   var toggleButton = ui.Button({
-    label: 'Select Population data ▼',
+    label: 'Affected population (select population data ▼)',
     onClick: function() {
       var isVisible = checkboxPanel.style().get('shown');
       checkboxPanel.style().set('shown', !isVisible);
   
       // Update label
-      toggleButton.setLabel(isVisible ? 'Select Population data ▼' : 'Select Population data ▲');
+      toggleButton.setLabel(isVisible ? 'Affected population (select population data ▼)' : 'Affected population (select population data ▲)');
   
       if (isVisible) {
         updateBarChart();
@@ -1892,7 +1892,7 @@ function displayFloodImpactPortal(aoi) {
   var dropdownPanel = ui.Panel({
     widgets: [toggleButton, checkboxPanel],
     layout: ui.Panel.Layout.flow('vertical'),
-    style: {position: 'top-left', padding: '2px', width: '20%', fontSize: '11px', backgroundColor: 'rgba(255, 255, 255, 0.6)'}
+    style: {position: 'top-left', padding: '0px', margin: '0px 0px -8px 0px', width: '100%', fontSize: '14px', backgroundColor: 'rgba(255, 255, 255, 0.6)'}
   });
 
       
@@ -1900,12 +1900,12 @@ function displayFloodImpactPortal(aoi) {
   var pop_chart = ui.Chart.feature.byFeature({
     features: allAffectedPopulation,
     xProperty: 'dataset',
-    yProperties: ['High', 'Low']
+    yProperties: ['High Confidence Flood', 'Low Confidence Flood']
   })
   .setChartType('ColumnChart')
   .setOptions({
-    title: 'Affected Population by Confidence Level',
-    titleTextStyle: {fontSize: 14},
+    //title: 'Affected Population by Confidence Level',
+    //titleTextStyle: {fontSize: 14},
     hAxis: {title: 'Population Dataset'},
     vAxis: {title: 'No. of People Affected', format: 'short'},
     isStacked: 'absolute',
@@ -1928,12 +1928,12 @@ function displayFloodImpactPortal(aoi) {
     var newChart = ui.Chart.feature.byFeature({
       features: filteredValues,
       xProperty: 'dataset',
-      yProperties: ['High', 'Low']
+      yProperties: ['High Confidence Flood', 'Low Confidence Flood']
     })
     .setChartType('ColumnChart')
     .setOptions({
-      title: 'Affected Population by Confidence Level',
-      titleTextStyle: {fontSize: 14},
+      //title: 'Affected Population by Confidence Level',
+      //titleTextStyle: {fontSize: 14},
       hAxis: {title: 'Population Dataset'},
       vAxis: {title: 'No. of People Affected', format: 'short'},
       isStacked: 'absolute',
@@ -1942,24 +1942,35 @@ function displayFloodImpactPortal(aoi) {
     });
     
     pop_chartBox.clear();
+    pop_chartBox.add(dropdownPanel);
     pop_chartBox.add(newChart);
   }
 
   // Add population chart to a panel with padding
-  var pop_chartBox = ui.Panel([pop_chart], null, {
-    stretch: 'horizontal',
-    padding: '0px',
-    width: '35%'  
+  // Stack dropdownPanel and pop_chart vertically inside pop_chartBox
+  var pop_chartBox = ui.Panel({
+    layout: ui.Panel.Layout.flow('vertical'),
+    style: {
+      stretch: 'horizontal',
+      padding: '0px', 
+      margin: '0px',
+      width: '55%'
+    }
   });
-
-  // Add both chart and legend to horizontal row
+  
+  // Add dropdownPanel on top, then the chart
+  pop_chartBox.add(dropdownPanel); // acts like a title
+  pop_chartBox.add(pop_chart);     // the chart below
+  
   chartLegendRow.add(pop_chartBox);
-  chartLegendRow.add(dropdownPanel);
+  //chartLegendRow.add(dropdownPanel);
   
   // Add the combined panel to chartPanel
   chartPanel.add(chartLegendRow);
-  chartPanel.add(ui.Label('Note: You can download all the data displayed here by running the script of this app in GEE code editor. Please find the full source script on the GitHub repository: https://github.com/PratyushTripathy/global_flood_mapper'));
-
+  chartPanel.add(ui.Label({
+      value: 'Note: You can download all the data displayed here by running the script of this app in GEE code editor. Please find the full source script on the GitHub repository: https://github.com/PratyushTripathy/global_flood_mapper',
+      style: {fontSize: '12px', margin: '2 2 2 2', padding:'2px'}
+  }));
   updateBarChart();
   
   // export flood depth map
