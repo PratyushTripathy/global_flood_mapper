@@ -429,23 +429,48 @@ var mapFloods = {
 
 // ===== Module: zScore =====
 var zScore = {
+  // Reducing an EMPTY image collection yields a 0-band image, and the
+  // subtract/divide below then die with "Image.subtract: If one image has no
+  // bands, the other must also have no bands. Got 0 and 3." A date window or
+  // orbit pass with no Sentinel-1 scenes over the AOI is easy to hit, so the
+  // safe reducers below keep the 3-band shape and fall back to a fully-masked
+  // image instead. Masked z propagates through the classification, so the
+  // flood map comes out empty rather than erroring.
+  s1Bands: ['VV', 'VH', 'angle'],
+
+  maskedS1: function() {
+    return ee.Image.constant([0, 0, 0])
+      .rename(zScore.s1Bands)
+      .updateMask(ee.Image(0));
+  },
+
+  safeMean: function(collection) {
+    return ee.Image(ee.Algorithms.If(
+      collection.size().gt(0), collection.mean(), zScore.maskedS1()));
+  },
+
+  safeStdDev: function(collection) {
+    return ee.Image(ee.Algorithms.If(
+      collection.size().gt(0),
+      collection.reduce(ee.Reducer.stdDev()).rename(zScore.s1Bands),
+      zScore.maskedS1()));
+  },
+
   // Z-score
   calc_zscore: function(s1_collection_t1, s1_collection_t2, mode, direction) {
-    var base_mean = s1_collection_t1
-      .filter(ee.Filter.equals('orbitProperties_pass', direction))
-      .mean();
-    
-    var anom = s1_collection_t2
-      .filter(ee.Filter.equals('orbitProperties_pass', direction))
-      .mean()
+    var t1 = s1_collection_t1
+      .filter(ee.Filter.equals('orbitProperties_pass', direction));
+    var t2 = s1_collection_t2
+      .filter(ee.Filter.equals('orbitProperties_pass', direction));
+
+    var base_mean = zScore.safeMean(t1);
+
+    var anom = zScore.safeMean(t2)
       .subtract(base_mean)
       .set({'system:time_start': s1_collection_t2.get('system:time_start')});
-    
-    var base_sd = s1_collection_t1
-      .filter(ee.Filter.equals('orbitProperties_pass', direction))
-      .reduce(ee.Reducer.stdDev())
-      .rename(['VV', 'VH', 'angle']);
-        
+
+    var base_sd = zScore.safeStdDev(t1);
+
     return anom.divide(base_sd)
       .set({'system:time_start': anom.get('system:time_start')});
   }
@@ -455,15 +480,12 @@ var zScore = {
 var zScoreBasic = {
   // Z-score
   calc_zscore: function(s1_collection_t1, s1_image_t2) {
-    var anom = s1_image_t2
-      .mean()
-      .subtract(s1_collection_t1.mean())
+    var anom = zScore.safeMean(s1_image_t2)
+      .subtract(zScore.safeMean(s1_collection_t1))
       .set({'system:time_start': s1_image_t2.get('system:time_start')});
-        
-    var basesd = s1_collection_t1
-      .reduce(ee.Reducer.stdDev())
-      .rename(['VV', 'VH', 'angle']);
-    
+
+    var basesd = zScore.safeStdDev(s1_collection_t1);
+
     return anom.divide(basesd)
       .set({'system:time_start': anom.get('system:time_start')});
   }
@@ -1319,13 +1341,17 @@ function displayFloodImpactPortal(aoi) {
     return image.reproject({crs: 'EPSG:4326', scale: scale});
   }
   
-  // Reproject raster datasets with fixed cell sizes
-  landcover  = reproject_image(landcover, 10);
-  ghspop  = reproject_image(ghspop, 100);
-  gpwpop  = reproject_image(gpwpop, 927.67);
-  worldpop = reproject_image(worldpop, 92.77);
-  hrslpop = reproject_image(hrslpop, 30);
-  landscan = reproject_image(landscan, 1000);
+  // These images are what the three map panels draw, and they are deliberately
+  // NOT reprojected. reproject() pins an image to one grid, and Earth Engine
+  // then renders any zoom coarser than that grid by *sampling* it -- one 100 m
+  // or 1 km cell per screen pixel, everything in between thrown away. On a
+  // population raster, where the empty cells are masked out, that samples
+  // mostly holes and the layer shows up as scattered specks instead of a
+  // surface. Left unpinned, Earth Engine averages down through the image
+  // pyramid for whatever zoom is on screen and the layer draws continuously.
+  //
+  // The statistics still need fixed grids, but they carry their own scales now
+  // (see popDatasets / FLOOD_SCALE below), so nothing here has to be pinned.
 
   ///////////////////////////
   // Calculate flood depth //
@@ -1368,15 +1394,19 @@ function displayFloodImpactPortal(aoi) {
   var floodDepth = computeFloodDepth(flood, dem);
   
   // get flood depth range to use later for visualization
-  var stats = floodDepth.reduceRegion({
-    reducer: ee.Reducer.percentile([0, 98]), // 0 = min, 90th percentile
+  var depthStats = floodDepth.reduceRegion({
+    reducer: ee.Reducer.percentile([0, 98]), // 0 = min, 98th percentile
     geometry: aoi,
     scale: 100,
     maxPixels: 1e8,
-    bestEffort: true  
+    bestEffort: true
   });
-  var minDepth = ee.Number(0);
-  var maxDepth = ee.Number(15);
+
+  // Fallback stretch, replaced below once the percentiles come back. Real
+  // FwDET depths are usually a few metres, so a fixed 0-15 m ramp put almost
+  // every pixel in the palest one or two colours of a nine-colour palette --
+  // near-invisible over the satellite basemap.
+  var DEFAULT_MAX_DEPTH = 5;
   
   
   // Calculate flood affected land cover area
@@ -1384,24 +1414,86 @@ function displayFloodImpactPortal(aoi) {
   //var areaSize = aoi.area();
   //var computeScale = ee.Number(areaSize).divide(1e6).sqrt().multiply(10).max(30); // Dynamic scale based on AOI size
   
+  // `flood` is a computed image, so it has no resolution of its own: Earth
+  // Engine re-derives it at whatever scale each reducer below asks for, reading
+  // VV/VH from a coarser pyramid level and averaging the backscatter first.
+  // Averaging damps the extremes, and the high-confidence class is the one that
+  // suffers, because it needs BOTH VV and VH past their thresholds while the
+  // low-confidence classes only need one -- a class 3 pixel that no longer
+  // clears both thresholds is demoted to class 1 or 2 rather than dropped. Left
+  // alone, every statistic below therefore described a different flood map
+  // (LandScan reduced at 1 km, HRSL at 30 m), the coarse ones systematically
+  // over-reporting low confidence relative to high.
+  //
+  // Pin the classification to one grid so every number describes the same map.
+  // 100 m is the same cell size the SHP export defaults to, and keeps the cost
+  // close to what the coarse datasets used to pay. Lower it (10 m is
+  // Sentinel-1's native resolution) for maximum fidelity at more compute.
+  var FLOOD_SCALE = 100;
+
+  function pinFlood(mask) {
+    return mask.reproject({crs: 'EPSG:4326', scale: FLOOD_SCALE});
+  }
+
+  // Share of a target-grid cell that this flood class actually covers, so a
+  // 1 km LandScan cell that is 30% flooded contributes 30% of its people --
+  // what "proportional affected population" was meant to mean all along.
+  // Without it, pairing a fine mask with a coarse raster samples a single fine
+  // pixel per coarse cell and counts that cell all-or-nothing.
+  function floodFractionAt(floodMask, targetScale) {
+    var target = {crs: 'EPSG:4326', scale: targetScale};
+
+    // reduceResolution only aggregates downwards; a target grid finer than the
+    // analysis grid has nothing to aggregate and just needs lining up.
+    if (targetScale <= FLOOD_SCALE) {
+      return floodMask.reproject(target);
+    }
+
+    return floodMask
+      .reduceResolution({reducer: ee.Reducer.mean(), maxPixels: 65535, bestEffort: true})
+      .reproject(target);
+  }
+
+  // What decides memory here is the tile footprint, not the size of the AOI.
+  // Earth Engine reduces in tiles of roughly 256 x 256 output pixels, so a
+  // reduceRegion at LandScan's 1 km pulls a ~256 x 256 km block of the 100 m
+  // analysis grid into a single tile -- 6.5 million fine pixels, and the flood
+  // graph has to be evaluated at every one of them. That graph is not cheap:
+  // two Sentinel-1 collection reductions, 72 JRC monthly images (36 summed
+  // twice), the GLO30 mosaic and a slope neighbourhood. Hence "User memory
+  // limit exceeded", and only on the coarse datasets over larger AOIs -- the
+  // 30 m and 100 m ones cover a few km per tile and never come close.
+  //
+  // bestEffort cannot rescue this: with the analysis grid pinned by reproject()
+  // it coarsens the *output*, which makes each tile span more ground and pull
+  // in even more fine pixels. Shrinking the tile is the lever that works, so
+  // ask for smaller tiles exactly where aggregation happens rather than taxing
+  // the fine datasets with tiny tiles they do not need. If a huge AOI still
+  // fails at the maximum of 16, raising FLOOD_SCALE is the next lever, since
+  // it cuts fine pixels per tile quadratically.
+  function tileScaleFor(targetScale) {
+    return targetScale > FLOOD_SCALE ? 16 : 4;
+  }
+
   // Create binary flood mask - include all flood classes (1, 2, 3)
-  var floodBinary = flood.gte(1).and(flood.lte(3));
-  
-  var floodLowConfidence = flood.gte(1).and(flood.lte(2));
-  var floodHighConfidence = flood.eq(3);
-  
+  var floodBinary = pinFlood(flood.gte(1).and(flood.lte(3)));
+
+  var floodLowConfidence = pinFlood(flood.gte(1).and(flood.lte(2)));
+  var floodHighConfidence = pinFlood(flood.eq(3));
+
   // Calculate area more efficiently
-  var maskedLC = landcover.updateMask(floodBinary);
-  var area = ee.Image.pixelArea();
-  var joined = area.addBands(maskedLC);
-  
+  var LC_SCALE = 500;
+  var floodedArea = ee.Image.pixelArea()
+    .multiply(floodFractionAt(floodBinary, LC_SCALE));
+  var joined = floodedArea.updateMask(floodedArea.gt(0)).addBands(landcover);
+
   var stats = joined.reduceRegion({
     reducer: ee.Reducer.sum().group({groupField: 1, groupName: 'landcover'}),
     geometry: aoi,
-    scale: 500, 
+    scale: LC_SCALE,
     maxPixels: 1e13,
     bestEffort: true,
-    tileScale: 4  
+    tileScale: tileScaleFor(LC_SCALE)
   });
   
   var chartData = ee.List(stats.get('groups')).map(function(d) {
@@ -1410,81 +1502,44 @@ function displayFloodImpactPortal(aoi) {
   });
   
   
-  // Compute proportional affected population based on flood fraction per pop cell
-  //high confidence
-  function getProportionalHighConfidenceAffectedPopulation(popImage) {
-    // Use the native resolution of each population dataset
-    var popScale = popImage.projection().nominalScale();
-    
-    // Simple approach: directly mask population with flood
-    // This works well when flood resolution is finer than population resolution
-    var affectedPop = popImage.updateMask(floodHighConfidence);
-    
-    // Sum the affected population
-    var totalAffected = affectedPop.reduceRegion({
-      reducer: ee.Reducer.sum(),
-      geometry: aoi,
-      scale: popScale,
-      maxPixels: 1e13,
-      bestEffort: true,
-      tileScale: 4
-    });
-    
-    return ee.Number(totalAffected.values().get(0)).round();
-  }
-  
-  //lowconfidence
-  function getProportionalLowConfidenceAffectedPopulation(popImage) {
-    // Use the native resolution of each population dataset
-    var popScale = popImage.projection().nominalScale();
-    
-    // Simple approach: directly mask population with flood
-    // This works well when flood resolution is finer than population resolution
-    var affectedPop = popImage.updateMask(floodLowConfidence);
-    
-    // Sum the affected population
-    var totalAffected = affectedPop.reduceRegion({
-      reducer: ee.Reducer.sum(),
-      geometry: aoi,
-      scale: popScale,
-      maxPixels: 1e13,
-      bestEffort: true,
-      tileScale: 4
-    });
-    
-    return ee.Number(totalAffected.values().get(0)).round();
-  }
-  
-  // Create a FeatureCollection with each dataset's affected population
-  var affected_pop = ee.FeatureCollection([
-    ee.Feature(null, {
-      dataset: 'Landscan',
-      "High Confidence Flood": getProportionalHighConfidenceAffectedPopulation(landscan),
-      "Low Confidence Flood": getProportionalLowConfidenceAffectedPopulation(landscan)
-    }),
-    ee.Feature(null, {
-      dataset: 'HRSL',
-      "High Confidence Flood": getProportionalHighConfidenceAffectedPopulation(hrslpop),
-      "Low Confidence Flood": getProportionalLowConfidenceAffectedPopulation(hrslpop)
-    }),
-    ee.Feature(null, {
-      dataset: 'WorldPop',
-      "High Confidence Flood": getProportionalHighConfidenceAffectedPopulation(worldpop),
-      "Low Confidence Flood": getProportionalLowConfidenceAffectedPopulation(worldpop)
-    }),
-    ee.Feature(null, {
-      dataset: 'GPWv4',
-      "High Confidence Flood": getProportionalHighConfidenceAffectedPopulation(gpwpop),
-      "Low Confidence Flood": getProportionalLowConfidenceAffectedPopulation(gpwpop)
-    }),
-    ee.Feature(null, {
-      dataset: 'GHS-POP',
-      "High Confidence Flood": getProportionalHighConfidenceAffectedPopulation(ghspop),
-      "Low Confidence Flood": getProportionalLowConfidenceAffectedPopulation(ghspop)
-    })
-  ]);
+  // Compute proportional affected population based on flood fraction per pop
+  // cell. Each cell contributes the share of itself that is flooded. Both
+  // confidence classes ride in one two-band image and one reduceRegion, so the
+  // expensive part -- evaluating the pinned flood classification under this
+  // dataset's grid -- happens once per dataset rather than once per class.
+  function affectedPopulationSums(dataset) {
+    var weighted = dataset.image
+      .multiply(floodFractionAt(floodHighConfidence, dataset.scale))
+      .rename('high')
+      .addBands(dataset.image
+        .multiply(floodFractionAt(floodLowConfidence, dataset.scale))
+        .rename('low'));
 
+    var totals = weighted.reduceRegion({
+      reducer: ee.Reducer.sum(),
+      geometry: aoi,
+      scale: dataset.scale,
+      maxPixels: 1e13,
+      bestEffort: true,
+      tileScale: tileScaleFor(dataset.scale)
+    });
+
+    // reduceRegion gives {band: null} when nothing is unmasked (no flood
+    // pixels of this class, or the dataset does not cover the AOI). Fall back
+    // to 0 rather than letting ee.Number(null) throw -- one bad dataset used
+    // to take the whole chart down with it.
+    function valueOr0(key) {
+      return ee.Number(ee.List([totals.get(key), 0])
+        .reduce(ee.Reducer.firstNonNull())).round();
+    }
+
+    return {high: valueOr0('high'), low: valueOr0('low')};
+  }
   
+  // Note: the chart's data is built further down by buildAffectedPopulation()
+  // from the datasets ticked in the dropdown; the layer images below are only
+  // used for display.
+
   // After calculating the affected population, remove zero values from the population layers
   function mask_pop(image){
     return image.updateMask(image.gt(0));
@@ -1660,11 +1715,22 @@ function displayFloodImpactPortal(aoi) {
   var chartTitle = ui.Label('Flood Impact', {fontWeight: 'bold', fontSize: '14px', padding: '0px'});
   chartPanel.add(chartTitle);
     
-  // Link the maps to navigate in sync
-  var linkMaps = function() {
-    var linkingBounds = ui.Map.Linker([floodMap, landcoverMap, populationMap]);
-  };
-  linkMaps();
+  // The three panels navigate in sync, but the linker is built at the end of
+  // this function rather than here -- see the centring block down there.
+  var portalMaps = [floodMap, landcoverMap, populationMap];
+
+  // Centre every panel on the AOI.
+  //
+  // centerObject asks the server for the AOI's bounds and applies the view
+  // whenever that answer comes back, so a call made while the portal is still
+  // being assembled can land on a map that has not been laid out inside its
+  // percentage-height panel yet, and is simply lost. Centre each map directly
+  // rather than trusting the linker to carry the view across.
+  function centerPortalOnAoi() {
+    portalMaps.forEach(function(map) {
+      map.centerObject(aoi);
+    });
+  }
   
   // Add layers to each map
   // Flood map
@@ -1673,15 +1739,29 @@ function displayFloodImpactPortal(aoi) {
                     ];
   var floodVis = {
     min: 0,
-    max: 15,
+    max: DEFAULT_MAX_DEPTH,
     palette: redPalette
   };
-  
+
   var floodDepthLayer = ui.Map.Layer(floodDepth, floodVis, 'Flood Depth', true);
   //floodMap.addLayer(floodDepth, floodVis, 'Flood Depth');
   //floodMap.layers().add(floodDepthLayer);
 
   addFloodExtentToggle(floodMap, flood, floodDepthLayer, 'Flood Depth');
+
+  // Stretch the depth ramp to this flood rather than to a fixed range, so the
+  // palette spans the depths that are actually present. Asynchronous, so the
+  // layer draws immediately on the fallback and restyles when the stats land.
+  var depthRangeLabel = ui.Label('', {fontSize: '11px', margin: '0 0 2px 0'});
+  depthStats.evaluate(function(result) {
+    if (!result) return;
+    var p98 = result.FwDET_GEE_p98;
+    if (p98 === null || p98 === undefined || !(p98 > 0)) return;
+
+    floodVis.max = Math.max(1, Math.round(p98 * 10) / 10);
+    floodDepthLayer.setVisParams(floodVis);
+    depthRangeLabel.setValue('0 - ' + floodVis.max + ' m');
+  });
 
   // Land cover map
   var worldCoverVis = {
@@ -1712,9 +1792,9 @@ function displayFloodImpactPortal(aoi) {
     max: 100,
     palette: ['#472836', '#9AD2CB', '#ffe87c', '#ffa552', '#ff4d4d']
   };
-  
+
   //populationMap.addLayer(ghspop, populationVis, 'Population');
-  
+
   // Define a mapping of population dataset names to their images.
   var populationDatasets = {
     'HRSL': hrslpop,
@@ -1723,6 +1803,30 @@ function displayFloodImpactPortal(aoi) {
     'GHS-POP 2025': ghspop,
     'Landscan 2023': landscan
   };
+
+  // These rasters hold people *per cell*, so the same place reads ~1000x
+  // higher in a 1 km cell than in a 30 m one. A single max of 100 therefore
+  // saturated LandScan and GPW to the top colour across the whole AOI while
+  // leaving HRSL down in the darkest one. Anchor every dataset to the same
+  // population density instead, so the ramp means one thing and the legend's
+  // Very Low - Very High wording is true whichever dataset is picked.
+  var POP_RAMP_TOP_DENSITY = 10000; // people per km2 at the top of the ramp
+  var populationCellSizes = {
+    'HRSL': 30,
+    'WorldPop 2020': 92.77,
+    'GPWv4.11 2020': 927.67,
+    'GHS-POP 2025': 100,
+    'Landscan 2023': 1000
+  };
+
+  function populationVisFor(label) {
+    var cellAreaKm2 = Math.pow(populationCellSizes[label] / 1000, 2);
+    return {
+      min: 0,
+      max: Math.max(1, Math.round(POP_RAMP_TOP_DENSITY * cellAreaKm2)),
+      palette: populationVis.palette
+    };
+  }
   
   
   // Create the checkbox for flood extent toggle.
@@ -1749,7 +1853,7 @@ function displayFloodImpactPortal(aoi) {
       // Reset populationMap layers.
       populationMap.layers().reset();
       // Add the selected population layer.
-      populationMap.addLayer(populationDatasets[selected], populationVis, selected);
+      populationMap.addLayer(populationDatasets[selected], populationVisFor(selected), selected);
       // Also check the state of the flood checkbox.
       floodLayer = ui.Map.Layer(flood.gt(0).selfMask(), visParams, label, floodCheckbox.getValue());
       populationMap.layers().add(floodLayer);
@@ -1763,7 +1867,8 @@ function displayFloodImpactPortal(aoi) {
   populationMap.add(popOptionsPanel);
   
   // Initially add the default population layer.
-  var populationLayer = ui.Map.Layer(populationDatasets[populationSelect.getValue()], populationVis, populationSelect.getValue());
+  var populationLayer = ui.Map.Layer(populationDatasets[populationSelect.getValue()],
+    populationVisFor(populationSelect.getValue()), populationSelect.getValue());
   populationMap.layers().add(populationLayer);
   populationMap.layers().add(floodLayer);
 
@@ -1785,7 +1890,30 @@ function displayFloodImpactPortal(aoi) {
       padding: '5px 0 0 0'  // top, right, bottom, left
     }
   });
-    
+
+  // Add land cover chart to a panel with padding. The panel and the legend are
+  // attached up front and filled in by the callback below, so the row keeps its
+  // land cover / legend / population order no matter when the data arrives.
+  var lc_chartBox = ui.Panel([], null, {
+    stretch: 'horizontal',
+    padding: '0px',
+    width: '25%'
+  });
+  lc_chartBox.add(ui.Label('Calculating affected land cover...',
+    {color: 'gray', fontSize: '12px'}));
+
+  // Style the legend
+  lcLegend.style().set({
+    padding: '0px',
+    width: '20%',
+    maxHeight: '100%',
+    stretch: 'vertical',
+    shown: true
+  });
+
+  chartLegendRow.add(lc_chartBox);
+  chartLegendRow.add(lcLegend);
+
   // Evaluate the chart data on the server
   chartData.evaluate(function(data) {
     // Add the donut chart to the bottom right panel
@@ -1854,106 +1982,84 @@ function displayFloodImpactPortal(aoi) {
       
     
     
-    // Add land cover chart to a panel with padding
-    var lc_chartBox = ui.Panel([lc_chart], null, {
-      stretch: 'horizontal',
-      padding: '0px',
-      width: '25%'
-    });
-  
-    
-    // Style the legend
-    lcLegend.style().set({
-      padding: '0px',
-      width: '20%',
-      maxHeight: '100%',
-      stretch: 'vertical',
-      shown: true
-    });
-    
-    chartLegendRow.add(lc_chartBox);
-    chartLegendRow.add(lcLegend);
-
+    lc_chartBox.clear();
+    lc_chartBox.add(lc_chart);
   });
     
   
     
-  var wpEarliestStart = ee.Date('2000-01-01'),
-      wpEarliestEnd   = ee.Date('2000-12-31'),
-      wpLatestStart   = ee.Date('2020-01-01'),
-      wpLatestEnd     = ee.Date('2020-12-31');
-  
-  var lsEarliestStart = ee.Date('2000-01-01'),
-      lsEarliestEnd   = ee.Date('2000-12-31'),
-      lsLatestStart   = ee.Date('2023-01-01'),
-      lsLatestEnd     = ee.Date('2023-12-30');
-  
-  var floodStartDate = start_date[1];
-  var floodEndDate   = floodStartDate.advance(advance_days[1], 'day');
-  
-  var beforeWP = floodStartDate.millis().lt(wpEarliestStart.millis())
-              .and(floodEndDate.millis().lt(wpEarliestStart.millis()));
-  var afterWP  = floodStartDate.millis().gt(wpLatestEnd.millis())
-              .and(floodEndDate.millis().gt(wpLatestEnd.millis()));
-  
-  var beforeLS = floodStartDate.millis().lt(lsEarliestStart.millis())
-              .and(floodEndDate.millis().lt(lsEarliestStart.millis()));
-  var afterLS  = floodStartDate.millis().gt(lsLatestEnd.millis())
-              .and(floodEndDate.millis().gt(lsLatestEnd.millis()));
-  
-  var worldPopStartDate = ee.Date(ee.Algorithms.If(
-    beforeWP, wpEarliestStart,
-    ee.Algorithms.If(afterWP, wpLatestStart, floodStartDate)
-  ));
-  var worldPopEndDate = ee.Date(ee.Algorithms.If(
-    beforeWP, wpEarliestEnd,
-    ee.Algorithms.If(afterWP, wpLatestEnd, floodEndDate)
-  ));
-  
-  var landScanStartDate = ee.Date(ee.Algorithms.If(
-    beforeLS, lsEarliestStart,
-    ee.Algorithms.If(afterLS, lsLatestStart, floodStartDate)
-  ));
-  var landScanEndDate = ee.Date(ee.Algorithms.If(
-    beforeLS, lsEarliestEnd,
-    ee.Algorithms.If(afterLS, lsLatestEnd, floodEndDate)
-  ));
+  // WorldPop and LandScan publish one image per calendar year, stamped 01 Jan.
+  // Filtering them with the during-flood date window only ever matches when that
+  // window happens to straddle a 01 Jan, so for virtually every real flood date
+  // the collection came back empty -- WorldPop then failed on .select() over a
+  // band-less mosaic and LandScan on .clip() of a null .first(). Either one
+  // aborts the whole affected-population computation, so the chart never drew.
+  // Pick the flood's calendar year instead, clamped to the years the dataset
+  // actually covers, and fall back to its newest year if that year is missing.
+  function annualPopMosaic(collection, minYear, maxYear) {
+    function yearOf(y) {
+      var start = ee.Date.fromYMD(y, 1, 1);
+      return collection.filterDate(start, start.advance(1, 'year'));
+    }
 
-  
+    var year = ee.Number(start_date[1].get('year')).max(minYear).min(maxYear);
+    var selected = yearOf(year);
+
+    return ee.ImageCollection(
+      ee.Algorithms.If(selected.size().gt(0), selected, yearOf(maxYear))
+    ).mosaic().clip(aoi);
+  }
+
+  // Each entry keeps its cell size alongside the image: the flood fraction has
+  // to be aggregated onto that grid before the two are combined, and that
+  // decision has to be made client-side.
+  function popDataset(image, scale) {
+    // Some gridded population products encode nodata as negative sentinels
+    // (typically over sea) instead of masking it. A flooded cell holding a
+    // sentinel would be weighted into the totals and can drag a whole sum
+    // negative, so keep only cells that hold an actual count.
+    var counts = image.updateMask(image.gte(0));
+    return {image: reproject_image(counts, scale), scale: scale};
+  }
+
   var popDatasets = {
-    'HRSL': reproject_image(ee.ImageCollection("projects/sat-io/open-datasets/hrsl/hrslpop").mosaic().clip(aoi), 30),
-    'WorldPop': reproject_image(ee.ImageCollection('WorldPop/GP/100m/pop')
-      .filterDate(worldPopStartDate, worldPopEndDate)
-      .mosaic()
-      .select('population')
-      .clip(aoi), 92.77),
-    'LandScan': ee.ImageCollection('projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL')
-      .filterDate(landScanStartDate, landScanEndDate)
-      .first()
-      .clip(aoi),
-    'GHS-POP 2005': reproject_image(ee.Image('JRC/GHSL/P2023A/GHS_POP/2005').clip(aoi), 100),
-    'GHS-POP 2010': reproject_image(ee.Image('JRC/GHSL/P2023A/GHS_POP/2010').clip(aoi), 100),
-    'GHS-POP 2015': reproject_image(ee.Image('JRC/GHSL/P2023A/GHS_POP/2015').clip(aoi), 100),
-    'GHS-POP 2020': reproject_image(ee.Image('JRC/GHSL/P2023A/GHS_POP/2020').clip(aoi), 100),
-    'GHS-POP 2025': reproject_image(ee.Image('JRC/GHSL/P2023A/GHS_POP/2025').clip(aoi), 100),
-    'GHS-POP 2030': reproject_image(ee.Image('JRC/GHSL/P2023A/GHS_POP/2030').clip(aoi), 100),
-    'GPW 2005': reproject_image(ee.Image('CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2005_30_sec').clip(aoi), 927.67),
-    'GPW 2010': reproject_image(ee.Image('CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2010_30_sec').clip(aoi), 927.67),
-    'GPW 2015': reproject_image(ee.Image('CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2015_30_sec').clip(aoi), 927.67),
-    'GPW 2020': reproject_image(ee.Image('CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2020_30_sec').clip(aoi), 927.67)
+    'HRSL': popDataset(ee.ImageCollection("projects/sat-io/open-datasets/hrsl/hrslpop")
+      .filterBounds(aoi).mosaic().clip(aoi), 30),
+    'WorldPop': popDataset(annualPopMosaic(
+      ee.ImageCollection('WorldPop/GP/100m/pop').select('population').filterBounds(aoi),
+      2000, 2020), 92.77),
+    'LandScan': popDataset(annualPopMosaic(
+      ee.ImageCollection('projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL').filterBounds(aoi),
+      2000, 2023), 1000),
+    'GHS-POP 2005': popDataset(ee.Image('JRC/GHSL/P2023A/GHS_POP/2005').clip(aoi), 100),
+    'GHS-POP 2010': popDataset(ee.Image('JRC/GHSL/P2023A/GHS_POP/2010').clip(aoi), 100),
+    'GHS-POP 2015': popDataset(ee.Image('JRC/GHSL/P2023A/GHS_POP/2015').clip(aoi), 100),
+    'GHS-POP 2020': popDataset(ee.Image('JRC/GHSL/P2023A/GHS_POP/2020').clip(aoi), 100),
+    'GHS-POP 2025': popDataset(ee.Image('JRC/GHSL/P2023A/GHS_POP/2025').clip(aoi), 100),
+    'GHS-POP 2030': popDataset(ee.Image('JRC/GHSL/P2023A/GHS_POP/2030').clip(aoi), 100),
+    'GPW 2005': popDataset(ee.Image('CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2005_30_sec').clip(aoi), 927.67),
+    'GPW 2010': popDataset(ee.Image('CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2010_30_sec').clip(aoi), 927.67),
+    'GPW 2015': popDataset(ee.Image('CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2015_30_sec').clip(aoi), 927.67),
+    'GPW 2020': popDataset(ee.Image('CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2020_30_sec').clip(aoi), 927.67)
   };
   
   
-  var allAffectedPopulation = ee.FeatureCollection(
-    Object.keys(popDatasets).map(function(key) {
-      return ee.Feature(null, {
-        dataset: key,
-        "High Confidence Flood": getProportionalHighConfidenceAffectedPopulation(popDatasets[key]),
-        "Low Confidence Flood": getProportionalLowConfidenceAffectedPopulation(popDatasets[key])
-      });
-    })
-  );
-    
+  // Build the collection from just the requested datasets. Building it from all
+  // of them and filtering afterwards still made Earth Engine reduce every one of
+  // the 13 rasters, which is what made the chart take minutes to appear.
+  function buildAffectedPopulation(labels) {
+    return ee.FeatureCollection(
+      labels.map(function(key) {
+        var sums = affectedPopulationSums(popDatasets[key]);
+        return ee.Feature(null, {
+          dataset: key,
+          "High Confidence Flood": sums.high,
+          "Low Confidence Flood": sums.low
+        });
+      })
+    );
+  }
+
   var defaultChecked = ['LandScan', 'HRSL', 'WorldPop', 'GPW 2020', 'GHS-POP 2025'];
 
   var checkboxes = Object.keys(popDatasets).map(function(label) {
@@ -1990,38 +2096,53 @@ function displayFloodImpactPortal(aoi) {
     style: {position: 'top-left', padding: '0px', margin: '0px 0px -8px 0px', width: '100%', fontSize: '14px', backgroundColor: 'rgba(255, 255, 255, 0.6)'}
   });
 
-      
-  // Build a bar chart (column chart) with vertical x-axis labels
-  var pop_chart = ui.Chart.feature.byFeature({
-    features: allAffectedPopulation,
-    xProperty: 'dataset',
-    yProperties: ['High Confidence Flood', 'Low Confidence Flood']
-  })
-  .setChartType('ColumnChart')
-  .setOptions({
-    //title: 'Affected Population by Confidence Level',
-    //titleTextStyle: {fontSize: 14},
-    hAxis: {title: 'Population Dataset'},
-    vAxis: {title: 'No. of People Affected', format: 'short'},
-    isStacked: 'absolute',
-    legend: {position: 'top'},
-    colors: ['#D20103', 'F8E806']  // High = red, Low = yellow
+
+  // Add population chart to a panel with padding
+  // Stack dropdownPanel and the chart holder vertically inside pop_chartBox
+  var pop_chartBox = ui.Panel({
+    layout: ui.Panel.Layout.flow('vertical'),
+    style: {
+      stretch: 'horizontal',
+      padding: '0px',
+      margin: '0px',
+      width: '55%'
+    }
   });
-  
+
+  // Only the holder is cleared when the chart is rebuilt, so the dataset
+  // dropdown above it keeps its state
+  var pop_chartHolder = ui.Panel({
+    layout: ui.Panel.Layout.flow('vertical'),
+    style: {stretch: 'both', padding: '0px', margin: '0px'}
+  });
+
+  // Add dropdownPanel on top, then the chart
+  pop_chartBox.add(dropdownPanel); // acts like a title
+  pop_chartBox.add(pop_chartHolder);
+
+  pop_chartHolder.add(ui.Label('Calculating affected population...',
+    {color: 'gray', fontSize: '12px'}));
+
   function getSelectedPopulation(){
-    var selectedLabels = checkboxes
-    .filter(function(cb) { return cb.getValue(); })
-    .map(function(cb) { return cb.getLabel(); });
-  
-    return allAffectedPopulation.filter(
-      ee.Filter.inList('dataset', ee.List(selectedLabels))
-    );
+    return checkboxes
+      .filter(function(cb) { return cb.getValue(); })
+      .map(function(cb) { return cb.getLabel(); });
   }
+
+  // Build a bar chart (column chart) with vertical x-axis labels
   function updateBarChart(){
-    var filteredValues = getSelectedPopulation();
-    
+    var selectedLabels = getSelectedPopulation();
+
+    pop_chartHolder.clear();
+
+    if (selectedLabels.length === 0) {
+      pop_chartHolder.add(ui.Label('Select at least one population dataset above.',
+        {color: 'gray', fontSize: '12px'}));
+      return;
+    }
+
     var newChart = ui.Chart.feature.byFeature({
-      features: filteredValues,
+      features: buildAffectedPopulation(selectedLabels),
       xProperty: 'dataset',
       yProperties: ['High Confidence Flood', 'Low Confidence Flood']
     })
@@ -2035,28 +2156,10 @@ function displayFloodImpactPortal(aoi) {
       legend: {position: 'top'},
       colors: ['#D20103', 'F8E806']  // High = red, Low = yellow
     });
-    
-    pop_chartBox.clear();
-    pop_chartBox.add(dropdownPanel);
-    pop_chartBox.add(newChart);
+
+    pop_chartHolder.add(newChart);
   }
 
-  // Add population chart to a panel with padding
-  // Stack dropdownPanel and pop_chart vertically inside pop_chartBox
-  var pop_chartBox = ui.Panel({
-    layout: ui.Panel.Layout.flow('vertical'),
-    style: {
-      stretch: 'horizontal',
-      padding: '0px', 
-      margin: '0px',
-      width: '55%'
-    }
-  });
-  
-  // Add dropdownPanel on top, then the chart
-  pop_chartBox.add(dropdownPanel); // acts like a title
-  pop_chartBox.add(pop_chart);     // the chart below
-  
   chartLegendRow.add(pop_chartBox);
   //chartLegendRow.add(dropdownPanel);
   
@@ -2066,8 +2169,8 @@ function displayFloodImpactPortal(aoi) {
       value: 'Note: You can download all the data displayed here by running the script of this app in GEE code editor. Please find the full source script on the GitHub repository: https://github.com/PratyushTripathy/global_flood_mapper',
       style: {fontSize: '12px', margin: '2 2 2 2', padding:'2px'}
   }));
-  updateBarChart();
-  
+  // The chart is built once, after the panels are attached to ui.root
+
   // export flood depth map
   Export.image.toDrive({
     image: floodDepth.visualize(floodVis),   
@@ -2094,7 +2197,8 @@ function displayFloodImpactPortal(aoi) {
     
   // export population map
   Export.image.toDrive({
-    image: populationDatasets[populationSelect.getValue()].visualize(populationVis),   
+    image: populationDatasets[populationSelect.getValue()]
+      .visualize(populationVisFor(populationSelect.getValue())),
     description: 'Gridded_Population_Map',
     folder:      'GFM_Map_Exports',
     fileNamePrefix: 'Gridded_Population_Map',
@@ -2200,7 +2304,10 @@ function displayFloodImpactPortal(aoi) {
   for (var i = 0; i < redPalette.length; i++) {
     floodLegend.add(makeRow(flippedPalette[i], depthLabels[i]));
   }
-  
+
+  // Filled in once the depth percentiles resolve, so the ramp is readable
+  floodLegend.add(depthRangeLabel);
+
   // Add flood depth legend
   floodMap.add(floodLegend);
   
