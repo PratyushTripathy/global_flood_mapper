@@ -494,6 +494,7 @@ var zScoreBasic = {
 // ===== MAIN APPLICATION CODE =====
 var aoi = 0;
 var drawnAOI = false; //checks if the aoi displayed is drawn by the user or selected through the dropdowns
+var chartWidgets = [null, null]; // tracks the chart widget for left(0)/right(1) panel
 
 // Define a function to update aoi
 function updateAoi(level_0, level_1, ret) {
@@ -1299,14 +1300,12 @@ function updateChart(map, defaultValue, controlPanel) {
   var chart = availabilityGraphStacked.generateCollectionChart(
     getSentinel1WithinDateRange(start_date[defaultValue], advance_days[defaultValue])
     );
-  
-  // If you are adding widgets before the chart,
-  // you will need to update the numbers below.
-  if (map.widgets().length() > 1) {
-    main_panel[defaultValue].widgets().set(2, chart);
-  } else {
-    controlPanel.add(chart);
+
+  if (chartWidgets[defaultValue]) {
+    controlPanel.remove(chartWidgets[defaultValue]);
   }
+  controlPanel.insert(2, chart);
+  chartWidgets[defaultValue] = chart;
 }
 
 // display the flood impact portal and clear existing UI elements
@@ -1728,7 +1727,7 @@ function displayFloodImpactPortal(aoi) {
   // rather than trusting the linker to carry the view across.
   function centerPortalOnAoi() {
     portalMaps.forEach(function(map) {
-      map.centerObject(aoi);
+      map.centerObject(aoi, 11);
     });
   }
   
@@ -2346,10 +2345,9 @@ function displayFloodImpactPortal(aoi) {
 
   // Use a short delay to ensure maps are fully initialized and linked before centering
   ui.util.setTimeout(function() {
-    floodMap.centerObject(aoi);
+    centerPortalOnAoi();
   }, 100);
 
-  // all three maps on the impact portal should be linked
   var portalLinker = ui.Map.Linker(portalMaps);
 }
 
