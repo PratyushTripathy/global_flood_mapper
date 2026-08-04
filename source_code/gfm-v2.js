@@ -2348,6 +2348,9 @@ function displayFloodImpactPortal(aoi) {
   ui.util.setTimeout(function() {
     floodMap.centerObject(aoi);
   }, 100);
+
+  // all three maps on the impact portal should be linked
+  var portalLinker = ui.Map.Linker(portalMaps);
 }
 
 var leftPiece = ui.Panel(
