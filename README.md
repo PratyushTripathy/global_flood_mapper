@@ -4,7 +4,7 @@
 
 This repository contains the source code and the link to the GFM Version 2. This version is a direct successor to GFM Version 1 ([GFM-v1 code repository link](https://github.com/PratyushTripathy/global_flood_mapper/tree/gfm-v1)).
 
-You can read the details of the flood mapping method in the first article [here](https://link.springer.com/article/10.1007/s11069-022-05428-2). If you are interested in the details of the newly added impact assessment portal in GFM v2, please find the details in the second paper here [https://doi.org/10.31223/X54482]. If you use this tool for flood mapping or use the source code to implement in some other work, please cite references listed in the [suggested citation](#suggested-citation) section below.<br/>
+You can read the details of the flood mapping method in the first article [here](https://link.springer.com/article/10.1007/s11069-022-05428-2). If you are interested in the details of the newly added impact assessment portal in GFM v2, please find the details in the second paper here [here](https://doi.org/10.31223/X54482). If you use this tool for flood mapping or use the source code to implement in some other work, please cite references listed in the [suggested citation](#suggested-citation) section below.<br/>
 
 GFM portal is quite intuitive but if you want a quick tutorial of how to use it, check out the usage [instructions](/instructions). Few examples of flood events around the globe can be found in [link](/examples).<br/>
 
@@ -37,5 +37,5 @@ Aggarwal, A. and Tripathy, P. (2026). Global Flood Mapper v2 [Software]. Zenodo.
 **Affiliation**<br/>
 Department of Geography, University of California, Santa Barbara, CA 93106, USA.<br/>
 
-**Funding**<br/>
+## Funding:
 Pratyush Tripathy was supported by National Aeronautics and Space Administration (NASA) under Grant No. 80NSSC25K0392 issued through their Future Investigators in NASA Earth and Space Science and Technology (FINESST) program.<br/>
