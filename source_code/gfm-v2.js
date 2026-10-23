@@ -216,11 +216,13 @@ var floodMapExport = {
     var sHigh = high.convolve(kernel).gt(0.5);
     var sLow = low.convolve(kernel).gt(0.5);
     
-    // Reassemble with precedence: Water > High Conf > Low Conf
+    // Reassemble with precedence: Water > High Conf > Low Conf.
+    // Keep the input's mask, or pixels with no S1 data would come out as 0 (non-water)
     return ee.Image(0)
       .where(sLow, 1)
       .where(sHigh, 3)
       .where(sOw, 4)
+      .updateMask(floodLayer.mask())
       .clip(aoi);
   },
 
@@ -240,7 +242,7 @@ var floodMapExport = {
     });
 
     // low-confidence flood export (values 1 and 2 merged)
-    var low_vectors = smoothed.eq(1).selfMask().reduceToVectors({
+    var low_vectors = smoothed.eq(1).or(smoothed.eq(2)).selfMask().reduceToVectors({
       geometry: aoi,
       crs: 'EPSG:4326',
       scale: cellSize,
@@ -328,17 +330,18 @@ var floodMapExport = {
   },
   
   // Define a function to smoothen the map and export the TIFF
+  // Exports the class codes (not RGB) so the GeoTIFF can be analysed directly:
+  // 0 non-water, 1 low confidence, 3 high confidence, 4 permanent water,
+  // 255 no data. With radiusPixels 0 the low-confidence classes stay split:
+  // 1 = VV-only, 2 = VH-only.
   getFloodTiffUrl: function(floodLayer, radiusPixels, aoi, cellSize, filename) {
     var smoothed = this._getSmoothedFlood(floodLayer, radiusPixels, aoi);
-    
-    var visParams = {
-      min:     0,
-      max:     4,
-      palette: mapFloods.palette
-    };
-    var colored = smoothed.visualize(visParams);
-    
-    var tiff_url = colored.getDownloadURL({
+
+    // Masked pixels are written as 0 in a GeoTIFF, which would read as non-water.
+    // sameFootprint false also fills the pixels clip(aoi) masked.
+    var classes = smoothed.unmask(255, false).rename('flood_class').toByte();
+
+    var tiff_url = classes.getDownloadURL({
       region: aoi,
       scale: cellSize,
       crs: "EPSG:4326",
@@ -347,16 +350,17 @@ var floodMapExport = {
     });
 
     Export.image.toDrive({
-      image: colored,   
+      image: classes,
       description: 'Flood_Map_TIFF',
       folder:      'GFM_Flood_Exports_TIFF',
       fileNamePrefix: filename,
       region:      aoi,
       scale:       cellSize,
       crs:         "EPSG:4326",
-      fileFormat:  'GeoTIFF'      
+      fileFormat:  'GeoTIFF',
+      formatOptions: {noData: 255}
     });
-    
+
     return tiff_url;
   }
 };
@@ -495,6 +499,7 @@ var zScoreBasic = {
 var aoi = 0;
 var drawnAOI = false; //checks if the aoi displayed is drawn by the user or selected through the dropdowns
 var chartWidgets = [null, null]; // tracks the chart widget for left(0)/right(1) panel
+var portalLinker; // module-level so the portal maps stay linked after displayFloodImpactPortal returns
 
 // Define a function to update aoi
 function updateAoi(level_0, level_1, ret) {
@@ -517,8 +522,11 @@ if (ui.url.get('pfd0', null) !== null && ui.url.get('country', null) === null) {
   aoi = ee.Geometry.Rectangle([ leftLon, leftLat, rightLon, rightLat ]);
 }
 
-// Define a default start date
-var start_date = [ee.Date('2020-05-01'), ee.Date('2024-05-08')];
+// Define a default start date. The client-side strings set the date sliders
+// without a blocking getInfo()
+var start_date_strings = (ui.url.get('pfd0', null) !== null) ?
+  [ui.url.get('pfd0'), ui.url.get('dfd0')] : ['2020-05-01', '2024-05-08'];
+var start_date = [ee.Date(start_date_strings[0]), ee.Date(start_date_strings[1])];
 
 var advance_days;
 if(ui.url.get('pfd0', null) !== null) {
@@ -629,10 +637,12 @@ function getSentinel1WithinDateRange(date, span) {
 }
 
 function createS1Composite(s1_collection) {
+  // safeMean: a window with no scenes would otherwise give a band-less image
+  var s1 = zScore.safeMean(s1_collection.select(zScore.s1Bands));
   var composite = ee.Image.cat([
-    s1_collection.select('VH').mean(),
-    s1_collection.select('VV').mean(),
-    s1_collection.select('VH').mean()
+    s1.select('VH'),
+    s1.select('VV'),
+    s1.select('VH')
     ]);
     
   return composite.clip(aoi);
@@ -660,8 +670,13 @@ function getSentinel2WithinDateRange(date, span) {
                     .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 70))
                     .map(maskS2clouds)
                     .select('B4', 'B3', 'B2');
-                    
-  return sentinel2.mean().clip(aoi);
+
+  // Fall back to a fully-masked image when the window has no scenes
+  return ee.Image(ee.Algorithms.If(
+    sentinel2.size().gt(0),
+    sentinel2.mean(),
+    ee.Image.constant([0, 0, 0]).rename(['B4', 'B3', 'B2']).updateMask(ee.Image(0))
+  )).clip(aoi);
 }
 
 // Create a function to generate Image dynamically
@@ -691,9 +706,6 @@ function addLayerSelector(mapToChange, defaultValue, position) {
       ui.Label("Pre-flood panel", {fontSize:'18px', fontWeight:'bold'}) : 
       ui.Label("During-flood panel", {fontSize:'18px', fontWeight:'bold'});
   var label = (defaultValue == '0') ? ui.Label("Pre-flood date range:") : ui.Label("During-flood date range:");
-  var show_optical = (defaultValue == '0') ? show_left_optical : show_right_optical;
-  var show_sar = (defaultValue == '0') ? show_left_sar : show_right_sar;
-  
   var controlPanel = ui.Panel({style: {position: position, width:'18%'}});
   // Add panel heading
   controlPanel.add(panelHeading);
@@ -704,16 +716,14 @@ function addLayerSelector(mapToChange, defaultValue, position) {
       );
   
   // This function changes the given map to show the selected image.
+  // The flood layer is left to updateFloodMap(), which every caller runs next.
   function updateMap() {
+    // Snapshot the layer checkboxes first so the user's toggles survive
+    updateVisibility();
+    var show_sar = (defaultValue == '0') ? show_left_sar : show_right_sar;
+    var show_optical = (defaultValue == '0') ? show_left_optical : show_right_optical;
     mapToChange.layers().set(0, ui.Map.Layer(getS1Image(defaultValue), s1RawVizParams, 'Sentinel-1', show_sar));
     mapToChange.layers().set(1, ui.Map.Layer(getS2Image(defaultValue), s2RawVizParams, 'Sentinel-2', show_optical));
-    
-    if (defaultValue == 1) {
-      mapToChange.layers().set(2, ui.Map.Layer(
-        getFloodImage(getSentinel1WithinDateRange(start_date[0], advance_days[0]), 
-                      getSentinel1WithinDateRange(start_date[1], advance_days[1])), 
-        {palette: mapFloods.palette}, 'Flood Map', true));
-    }
   }
 
   // Add dropdown for states first so that
@@ -738,7 +748,8 @@ function addLayerSelector(mapToChange, defaultValue, position) {
       countryDD.setPlaceholder('Country');
     }
     countryDD.onChange(function(state){
-      selectedCountry = state;
+      // selectedCountry is only updated once a state is picked, so the
+      // shareable link keeps describing the AOI that is actually loaded
       // once you select a state (onChange) get all counties and fill the dropdown
       statesDD.setPlaceholder('Loading...');
       var counties = ee.List(aoiFilter.countries[state]);
@@ -750,6 +761,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
     });
   });
   statesDD.onChange(function(value){
+    selectedCountry = countryDD.getValue();
     selectedState = value;
     drawnAOI = false;
     updateAoi(countryDD.getValue(), value, false);
@@ -781,16 +793,9 @@ function addLayerSelector(mapToChange, defaultValue, position) {
       updateChart(mapToChange, defaultValue, controlPanel);
     }});
     
-  if(ui.url.get('pfd0', null) !== null) {
-    var preFloodDate = ui.url.get('pfd0');
-    var duringFloodDate = ui.url.get('dfd0');
-    start_date = [ee.Date(preFloodDate), ee.Date(duringFloodDate)];
-    dateSlider = dateSlider.setValue(start_date[defaultValue].format('Y-MM-dd').getInfo());
-  }
-  else{
-    // Set the default date of the date slider from the actual map dates
-    dateSlider = dateSlider.setValue(start_date[defaultValue].format('Y-MM-dd').getInfo());
-  }
+  // start_date already holds this date (from the URL or the default), so set
+  // the slider without firing onChange, which would rebuild the layers
+  dateSlider = dateSlider.setValue(start_date_strings[defaultValue], false);
   
   // Add the text box for users to enter the desired span
   var text_box = ui.Textbox({
@@ -803,7 +808,8 @@ function addLayerSelector(mapToChange, defaultValue, position) {
     }});
   
   if(ui.url.get('pfd0', null) !== null) {
-    text_box.setValue(advance_days[defaultValue]);
+    // advance_days is already set from the URL; don't trigger a rebuild
+    text_box.setValue(advance_days[defaultValue], false);
   }
   
   
@@ -825,42 +831,45 @@ function addLayerSelector(mapToChange, defaultValue, position) {
     var dd_heading = ui.Label("Select area of interest:");
     controlPanel.add(dd_heading);
     controlPanel.add(leftSubPanel1);
+
+    // Register the draw handlers once: onDraw adds a listener on every call, so
+    // registering them inside the button made one rectangle rebuild the maps
+    // once per click so far
+    var awaitingAoiDraw = false;
+    var onAoiDrawn = function(geometry) {
+      if (!awaitingAoiDraw) return;
+      awaitingAoiDraw = false;
+      leftMap.drawingTools().stop();
+      leftMap.drawingTools().clear();
+      rightMap.drawingTools().stop();
+      rightMap.drawingTools().clear();
+      // Only now is the AOI really drawn; a click without a drawing keeps the
+      // named AOI
+      drawnAOI = true;
+      aoi = geometry;
+      updateBothMapPanel();
+    };
+    leftMap.drawingTools().onDraw(onAoiDrawn);
+    rightMap.drawingTools().onDraw(onAoiDrawn);
+
     controlPanel.add(
       ui.Button({
         label: 'Draw AOI',
         style: {stretch: 'horizontal'},
         onClick: function() {
-          drawnAOI = true;
+          awaitingAoiDraw = true;
           leftMap.drawingTools().clear();
           leftMap.drawingTools().setShown(false);
           leftMap.drawingTools().setShape('rectangle');
           leftMap.drawingTools().draw();
-          
-          leftMap.drawingTools().onDraw(function(geometry) {
-            leftMap.drawingTools().stop();
-            leftMap.drawingTools().clear();
-            rightMap.drawingTools().stop();
-            rightMap.drawingTools().clear();
-            aoi = geometry;
-            updateBothMapPanel();
-          });
-          
+
           rightMap.drawingTools().clear();
           rightMap.drawingTools().setShown(false);
           rightMap.drawingTools().setShape('rectangle');
           rightMap.drawingTools().draw();
-          
-          rightMap.drawingTools().onDraw(function(geometry) {
-            rightMap.drawingTools().stop();
-            rightMap.drawingTools().clear();
-            leftMap.drawingTools().stop();
-            leftMap.drawingTools().clear();
-            aoi = geometry;
-            updateBothMapPanel();
-          });
         }
-      })    
-    );    
+      })
+    );
   }
   
   // Add common widgets
@@ -989,14 +998,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
               smoothingValue,
               aoi,
               cellSizeValue,
-              'GFM_' +
-                start_date[0].format('YYYYMMdd').getInfo() + '_' +
-                start_date[1].format('YYYYMMdd').getInfo() + '_' +
-                aoi.bounds().coordinates().get(0).getInfo()[0][1].toFixed(2) + '_' +
-                aoi.bounds().coordinates().get(0).getInfo()[0][0].toFixed(2) + '_' +
-                aoi.bounds().coordinates().get(0).getInfo()[2][1].toFixed(2) + '_' +
-                aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2) + '_' +
-                cellSizeValue+'m_SR'+smoothingValue
+              exportFilename(cellSizeValue, smoothingValue)
             );
             
             urls.evaluate(function(urlList){
@@ -1105,14 +1107,7 @@ function addLayerSelector(mapToChange, defaultValue, position) {
               smoothingValue,
               aoi,
               cellSizeValue,
-              'GFM_' +
-                start_date[0].format('YYYYMMdd').getInfo() + '_' +
-                start_date[1].format('YYYYMMdd').getInfo() + '_' +
-                aoi.bounds().coordinates().get(0).getInfo()[0][1].toFixed(2) + '_' +
-                aoi.bounds().coordinates().get(0).getInfo()[0][0].toFixed(2) + '_' +
-                aoi.bounds().coordinates().get(0).getInfo()[2][1].toFixed(2) + '_' +
-                aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2) + '_' +
-                cellSizeValue+'m_SR'+smoothingValue
+              exportFilename(cellSizeValue, smoothingValue)
             );
   
             var tiff_label = ui.Label('GeoTIFF link', {shown: true});
@@ -1207,21 +1202,27 @@ right_panel = right_panel[0];
 
 var main_panel = [left_panel, right_panel];
 
-updateBothMapPanel();
+// The maps are first rendered once, at the end of the file, after the UI is
+// attached and URL parameters are applied.
 
+
+// Shown state of a map layer, or the fallback before that layer exists
+function layerShown(map, index, fallback) {
+  return map.layers().length() > index ? map.layers().get(index).getShown() : fallback;
+}
 
 // Create a function that takes the checkbox boolean
 // value of the two layers of both the maps and updates
-// the variable. This function will be called before the 
+// the variable. This function will be called before the
 // updateMap funtion.
 function updateVisibility() {
   // Use the checkbox information to update the layers
-  // in both the maps. 0 is SAR, 1 is optical.  
-  show_left_sar = leftMap.layers().get(0).getShown();
-  show_right_sar = rightMap.layers().get(0).getShown();
-  
-  show_left_optical = leftMap.layers().get(1).getShown();
-  show_right_optical = rightMap.layers().get(1).getShown();
+  // in both the maps. 0 is SAR, 1 is optical.
+  show_left_sar = layerShown(leftMap, 0, show_left_sar);
+  show_right_sar = layerShown(rightMap, 0, show_right_sar);
+
+  show_left_optical = layerShown(leftMap, 1, show_left_optical);
+  show_right_optical = layerShown(rightMap, 1, show_right_optical);
 }
 
 // This function is called only when 
@@ -1248,21 +1249,46 @@ function updateBothMapPanel() {
 // Update flood map
 function updateFloodMap() {
   rightMap.layers().set(2, ui.Map.Layer(
-        getFloodImage(getSentinel1WithinDateRange(start_date[0], advance_days[0]), 
-                      getSentinel1WithinDateRange(start_date[1], advance_days[1])), 
-        {palette: mapFloods.palette}, 'Flood Map', true));
+        getFloodImage(getSentinel1WithinDateRange(start_date[0], advance_days[0]),
+                      getSentinel1WithinDateRange(start_date[1], advance_days[1])),
+        {palette: mapFloods.palette}, 'Flood Map', layerShown(rightMap, 2, true)));
+}
+
+// AOI bounds and date strings for links and export filenames, fetched in one
+// blocking round trip instead of one getInfo() per value
+function getAoiInfo() {
+  return ee.Dictionary({
+    bounds: aoi.bounds().coordinates().get(0),
+    pfd0: start_date[0].format('YYYY-MM-dd'),
+    pfd1: start_date[0].advance(advance_days[0], 'day').format('YYYY-MM-dd'),
+    dfd0: start_date[1].format('YYYY-MM-dd'),
+    dfd1: start_date[1].advance(advance_days[1], 'day').format('YYYY-MM-dd')
+  }).getInfo();
+}
+
+function exportFilename(cellSizeValue, smoothingValue) {
+  var info = getAoiInfo();
+  return 'GFM_' +
+    info.pfd0.replace(/-/g, '') + '_' +
+    info.dfd0.replace(/-/g, '') + '_' +
+    info.bounds[0][1].toFixed(2) + '_' +
+    info.bounds[0][0].toFixed(2) + '_' +
+    info.bounds[2][1].toFixed(2) + '_' +
+    info.bounds[2][0].toFixed(2) + '_' +
+    cellSizeValue+'m_SR'+smoothingValue;
 }
 
 // Update url with necessary information
 function updateLink(stateName, countryName) {
+  var info = getAoiInfo();
   if (drawnAOI == false && stateName != null && stateName.length > 0 && countryName.length > 0) {
     ui.url.set({
-    'pfd0': start_date[0].format('YYYY-MM-dd').getInfo(), //pre-flood date
-    'pfd1': start_date[0].advance(advance_days[0], 'day').format('YYYY-MM-dd').getInfo(),
-    'dfd0': start_date[1].format('YYYY-MM-dd').getInfo(), //during-flood date
-    'dfd1': start_date[1].advance(advance_days[1], 'day').format('YYYY-MM-dd').getInfo(),
+    'pfd0': info.pfd0, //pre-flood date
+    'pfd1': info.pfd1,
+    'dfd0': info.dfd0, //during-flood date
+    'dfd1': info.dfd1,
     'sd0': advance_days[0], //before flood succeeding days
-    'sd1': advance_days[1], // during flood succeeding days      
+    'sd1': advance_days[1], // during flood succeeding days
     'state': stateName,
     'country': countryName,
     'zvv': zvv_thd_text.getValue(),
@@ -1275,16 +1301,16 @@ function updateLink(stateName, countryName) {
   }
   else {
     ui.url.set({
-      'pfd0': start_date[0].format('YYYY-MM-dd').getInfo(), //pre-flood date
-      'pfd1': (start_date[0].advance(advance_days[0], 'day')).format('YYYY-MM-dd').getInfo(),
-      'dfd0': start_date[1].format('YYYY-MM-dd').getInfo(), //during-flood date
-      'dfd1': start_date[1].advance(advance_days[1], 'day').format('YYYY-MM-dd').getInfo(),
+      'pfd0': info.pfd0, //pre-flood date
+      'pfd1': info.pfd1,
+      'dfd0': info.dfd0, //during-flood date
+      'dfd1': info.dfd1,
       'sd0': advance_days[0], //before flood succeeding days
-      'sd1': advance_days[1], // during flood succeeding days     
-      'llat': aoi.bounds().coordinates().get(0).getInfo()[0][1].toFixed(2), //aoi left latitude
-      'llong': aoi.bounds().coordinates().get(0).getInfo()[0][0].toFixed(2), //aoi left longitude
-      'rlat': aoi.bounds().coordinates().get(0).getInfo()[2][1].toFixed(2), //aoi right latitude
-      'rlong': aoi.bounds().coordinates().get(0).getInfo()[2][0].toFixed(2), //aoi right longitude
+      'sd1': advance_days[1], // during flood succeeding days
+      'llat': info.bounds[0][1].toFixed(2), //aoi left latitude
+      'llong': info.bounds[0][0].toFixed(2), //aoi left longitude
+      'rlat': info.bounds[2][1].toFixed(2), //aoi right latitude
+      'rlong': info.bounds[2][0].toFixed(2), //aoi right longitude
       'zvv': zvv_thd_text.getValue(),
       'zvh': zvh_thd_text.getValue(),
       'pow': pow_thd_text.getValue(),
@@ -1826,6 +1852,41 @@ function displayFloodImpactPortal(aoi) {
       palette: populationVis.palette
     };
   }
+
+  // mosaic() drops the source projection, so take each dataset's native grid
+  // from a source image covering the AOI
+  var populationProjections = {
+    'HRSL': ee.ImageCollection("projects/sat-io/open-datasets/hrsl/hrslpop")
+      .filterBounds(aoi).first().projection(),
+    'WorldPop 2020': ee.ImageCollection('WorldPop/GP/100m/pop')
+      .filterBounds(aoi).first().select('population').projection(),
+    'GPWv4.11 2020': ee.ImageCollection('CIESIN/GPWv411/GPW_Population_Count')
+      .first().select('population_count').projection(),
+    'GHS-POP 2025': ghspop.projection(),
+    'Landscan 2023': landscan.projection()
+  };
+
+  // Export population as people per cell (not RGB); -9999 = no data.
+  // Counts must be written on the dataset's native grid: any other grid makes
+  // nearest-neighbour resampling drop or duplicate cells, so sums go wrong.
+  function exportPopulation(label) {
+    var image = populationDatasets[label];
+    var name = 'Gridded_Population_Map_' + label.replace(/[^A-Za-z0-9]/g, '_');
+    populationProjections[label].evaluate(function(proj) {
+      if (!proj) return;  // dataset has no image over the AOI
+      Export.image.toDrive({
+        image: image.updateMask(image.gte(0)).unmask(-9999, false).toFloat(),
+        description: name,
+        folder:      'GFM_Map_Exports',
+        fileNamePrefix: name,
+        region:      aoi,
+        crs:         proj.crs || proj.wkt,
+        crsTransform: proj.transform,
+        fileFormat:  'GeoTIFF',
+        formatOptions: {noData: -9999}
+      });
+    });
+  }
   
   
   // Create the checkbox for flood extent toggle.
@@ -1856,6 +1917,7 @@ function displayFloodImpactPortal(aoi) {
       // Also check the state of the flood checkbox.
       floodLayer = ui.Map.Layer(flood.gt(0).selfMask(), visParams, label, floodCheckbox.getValue());
       populationMap.layers().add(floodLayer);
+      exportPopulation(selected);
     }
   });
   // Create a panel that holds both widgets.
@@ -2004,9 +2066,21 @@ function displayFloodImpactPortal(aoi) {
     var year = ee.Number(start_date[1].get('year')).max(minYear).min(maxYear);
     var selected = yearOf(year);
 
-    return ee.ImageCollection(
+    return safeMosaic(ee.ImageCollection(
       ee.Algorithms.If(selected.size().gt(0), selected, yearOf(maxYear))
-    ).mosaic().clip(aoi);
+    )).clip(aoi);
+  }
+
+  // mosaic() of an empty collection (a dataset with no tile over the AOI, e.g.
+  // HRSL outside its coverage) is band-less, and multiplying it by the flood
+  // fraction fails with "Got 0 and 1" -- taking the whole chart down. A
+  // fully-masked band instead reduces to null, which valueOr0 turns into 0.
+  function safeMosaic(collection) {
+    return ee.Image(ee.Algorithms.If(
+      collection.size().gt(0),
+      collection.mosaic(),
+      ee.Image.constant(0).updateMask(ee.Image(0))
+    ));
   }
 
   // Each entry keeps its cell size alongside the image: the flood fraction has
@@ -2022,8 +2096,8 @@ function displayFloodImpactPortal(aoi) {
   }
 
   var popDatasets = {
-    'HRSL': popDataset(ee.ImageCollection("projects/sat-io/open-datasets/hrsl/hrslpop")
-      .filterBounds(aoi).mosaic().clip(aoi), 30),
+    'HRSL': popDataset(safeMosaic(ee.ImageCollection("projects/sat-io/open-datasets/hrsl/hrslpop")
+      .filterBounds(aoi)).clip(aoi), 30),
     'WorldPop': popDataset(annualPopMosaic(
       ee.ImageCollection('WorldPop/GP/100m/pop').select('population').filterBounds(aoi),
       2000, 2020), 92.77),
@@ -2170,42 +2244,35 @@ function displayFloodImpactPortal(aoi) {
   }));
   // The chart is built once, after the panels are attached to ui.root
 
-  // export flood depth map
+  // export flood depth map in metres (not RGB); -9999 = not flooded or outside
+  // the AOI (use the flood map GeoTIFF for extent)
   Export.image.toDrive({
-    image: floodDepth.visualize(floodVis),   
+    image: floodDepth.unmask(-9999, false).toFloat(),
     description: 'Flood_Depth_Map',
     folder:      'GFM_Map_Exports',
     fileNamePrefix: 'Flood_Depth_Map',
     region:      aoi,
     scale:       10,
     crs:         "EPSG:4326",
-    fileFormat:  'GeoTIFF'      
+    fileFormat:  'GeoTIFF',
+    formatOptions: {noData: -9999}
   });
-    
-  // export land cover map
+
+  // export land cover map as WorldCover class codes (not RGB); 0 = no data
   Export.image.toDrive({
-    image: landcover.visualize(worldCoverVis),   
+    image: landcover.select('Map').unmask(0, false).toByte(),
     description: 'Land_Cover_Map',
     folder:      'GFM_Map_Exports',
     fileNamePrefix: 'Land_Cover_Map',
     region:      aoi,
     scale:       10,
     crs:         "EPSG:4326",
-    fileFormat:  'GeoTIFF'      
+    fileFormat:  'GeoTIFF',
+    formatOptions: {noData: 0}
   });
-    
-  // export population map
-  Export.image.toDrive({
-    image: populationDatasets[populationSelect.getValue()]
-      .visualize(populationVisFor(populationSelect.getValue())),
-    description: 'Gridded_Population_Map',
-    folder:      'GFM_Map_Exports',
-    fileNamePrefix: 'Gridded_Population_Map',
-    region:      aoi,
-    scale:       10,
-    crs:         "EPSG:4326",
-    fileFormat:  'GeoTIFF'      
-  });
+
+  // export the population dataset shown on the map; re-run on each selection
+  exportPopulation(populationSelect.getValue());
   
   var returnUrl;
   if (drawnAOI === false && selectedState && selectedCountry) {
@@ -2343,12 +2410,14 @@ function displayFloodImpactPortal(aoi) {
   updateBarChart();
   pop_chartBox.remove(pop_loading_label);
 
-  // Use a short delay to ensure maps are fully initialized and linked before centering
-  ui.util.setTimeout(function() {
-    centerPortalOnAoi();
-  }, 100);
-
-  var portalLinker = ui.Map.Linker(portalMaps);
+  // Attached -> centre -> link -> re-centre. A linker built over maps that are
+  // still laying out copies their default world view across the others, and
+  // centerObject no-ops on a map with no layout yet, hence the timed retries.
+  // portalLinker is module-level so the link outlives this call.
+  centerPortalOnAoi();
+  portalLinker = ui.Map.Linker(portalMaps);
+  ui.util.setTimeout(centerPortalOnAoi, 100);
+  ui.util.setTimeout(centerPortalOnAoi, 1000);
 }
 
 var leftPiece = ui.Panel(
@@ -2382,44 +2451,66 @@ refresh();
 
 var linker = ui.Map.Linker([leftMap, rightMap]);
 
-// Initialize both maps with content
-updateBothMapPanel();
-
-// Center on the default AOI
-leftMap.centerObject(aoi, 12);
-
+// Apply URL parameters before the first render, so the maps are built once
+// with the shared settings rather than with the defaults and then rebuilt by
+// every setValue below
 if(ui.url.get('pfd0', null) !== null) {
   var preFloodDate = ui.url.get('pfd0');
   var duringFloodDate = ui.url.get('dfd0');
-  
+
   var preFloodDays = parseInt(ui.url.get('sd0'));
   var duringFloodDays = parseInt(ui.url.get('sd1'));
-  
+
   start_date = [ee.Date(preFloodDate), ee.Date(duringFloodDate)];
   advance_days = [preFloodDays, duringFloodDays];
-  
+
   if(ui.url.get('country', null) !== null) {
     var country = ui.url.get('country');
     var state = ui.url.get('state');
     updateAoi(country, state, false);
+    // Without these the share/return links fall into the drawn-AOI branch and
+    // turn the state into its bounding box
+    selectedCountry = country;
+    selectedState = state;
+    drawnAOI = false;
   }
   else {
     var leftLon = parseFloat(ui.url.get('llong'));
     var leftLat = parseFloat(ui.url.get('llat'));
     var rightLon = parseFloat(ui.url.get('rlong'));
     var rightLat = parseFloat(ui.url.get('rlat'));
-    
+
     aoi = ee.Geometry.Rectangle(
       [leftLon, leftLat, rightLon, rightLat],
       null,
-      false  
+      false
     );
   }
-  
-  zvv_thd_text.setValue(ui.url.get('zvv'));
-  zvh_thd_text.setValue(ui.url.get('zvh'));
-  pow_thd_text.setValue(ui.url.get('pow'));
-  elev_thd_text.setValue(ui.url.get('elev'));
-  slp_thd_text.setValue(ui.url.get('slp'));
-  pass_dd.setValue(ui.url.get('pass'));
+
+  // Set the values without triggering onChange (which rebuilds the flood map
+  // each time); a missing parameter keeps the default
+  init_zvv_thd = ui.url.get('zvv', init_zvv_thd);
+  init_zvh_thd = ui.url.get('zvh', init_zvh_thd);
+  init_pow_thd = ui.url.get('pow', init_pow_thd);
+  init_elev_thd = ui.url.get('elev', init_elev_thd);
+  init_slp_thd = ui.url.get('slp', init_slp_thd);
+  zvv_thd_text.setValue(init_zvv_thd, false);
+  zvh_thd_text.setValue(init_zvh_thd, false);
+  pow_thd_text.setValue(init_pow_thd, false);
+  elev_thd_text.setValue(init_elev_thd, false);
+  slp_thd_text.setValue(init_slp_thd, false);
+
+  // getFloodImage has no branch for an unknown pass, so a link without one
+  // (or with a hand-edited value) would crash the flood map
+  var pass = ui.url.get('pass', pass_options[0]);
+  if (pass_options.indexOf(pass) === -1) {
+    pass = pass_options[0];
+  }
+  pass_dd.setValue(pass, false);
 }
+
+// Initialize both maps with content
+updateBothMapPanel();
+
+// Center on the default AOI
+leftMap.centerObject(aoi, 12);
