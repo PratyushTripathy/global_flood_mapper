@@ -2449,8 +2449,6 @@ function refresh() {
 }
 refresh();
 
-var linker = ui.Map.Linker([leftMap, rightMap]);
-
 // Apply URL parameters before the first render, so the maps are built once
 // with the shared settings rather than with the defaults and then rebuilt by
 // every setValue below
@@ -2512,5 +2510,15 @@ if(ui.url.get('pfd0', null) !== null) {
 // Initialize both maps with content
 updateBothMapPanel();
 
-// Center on the default AOI
-leftMap.centerObject(aoi, 12);
+// Center on the AOI: centre -> link -> re-centre, as in the impact portal.
+// centerObject is async and no-ops on a map that has no layout yet, and a
+// linker built over maps that are still laying out copies their default (US)
+// view across, so a single call only sometimes landed on the AOI.
+function centerMainMaps() {
+  leftMap.centerObject(aoi, 12);
+  rightMap.centerObject(aoi, 12);
+}
+centerMainMaps();
+var linker = ui.Map.Linker([leftMap, rightMap]);
+ui.util.setTimeout(centerMainMaps, 100);
+ui.util.setTimeout(centerMainMaps, 1000);
