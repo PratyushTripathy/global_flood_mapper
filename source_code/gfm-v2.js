@@ -833,9 +833,12 @@ function addLayerSelector(mapToChange, defaultValue, position) {
     controlPanel.add(leftSubPanel1);
 
     // Register the draw handlers once: onDraw adds a listener on every call, so
-    // registering them inside the button made one rectangle rebuild the maps
-    // once per click so far
+    // registering them on every click made one rectangle rebuild the maps once
+    // per click so far. They are registered on the first click, not here: the
+    // maps are not attached yet at this point, and listeners added this early
+    // never fire.
     var awaitingAoiDraw = false;
+    var drawHandlersRegistered = false;
     var onAoiDrawn = function(geometry) {
       if (!awaitingAoiDraw) return;
       awaitingAoiDraw = false;
@@ -849,8 +852,6 @@ function addLayerSelector(mapToChange, defaultValue, position) {
       aoi = geometry;
       updateBothMapPanel();
     };
-    leftMap.drawingTools().onDraw(onAoiDrawn);
-    rightMap.drawingTools().onDraw(onAoiDrawn);
 
     controlPanel.add(
       ui.Button({
@@ -867,6 +868,12 @@ function addLayerSelector(mapToChange, defaultValue, position) {
           rightMap.drawingTools().setShown(false);
           rightMap.drawingTools().setShape('rectangle');
           rightMap.drawingTools().draw();
+
+          if (!drawHandlersRegistered) {
+            drawHandlersRegistered = true;
+            leftMap.drawingTools().onDraw(onAoiDrawn);
+            rightMap.drawingTools().onDraw(onAoiDrawn);
+          }
         }
       })
     );
