@@ -1,7 +1,10 @@
 # Global Flood Mapper (GFM) - Version 2
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23585198.svg)](https://doi.org/10.5281/zenodo.23585198)
+
 This repository contains the source code and the link to the GFM Version 2. This version is a direct successor to GFM Version 1 ([GFM-v1 code repository link](https://github.com/PratyushTripathy/global_flood_mapper/tree/gfm-v1)).
 
-You can read the details of the flood mapping method in the first article [here](https://link.springer.com/article/10.1007/s11069-022-05428-2). If you are interested in the details of the newly added impact assessment portal in GFM v2, please find the details in the second paper here [TBD]. If you use this tool for flood mapping or use the source code to implement in some other work, please cite references listed in the [suggested citation](#suggested-citation) section below.<br/>
+You can read the details of the flood mapping method in the first article [here](https://link.springer.com/article/10.1007/s11069-022-05428-2). If you are interested in the details of the newly added impact assessment portal in GFM v2, please find the details in the second paper here [here](https://doi.org/10.31223/X54482). If you use this tool for flood mapping or use the source code to implement in some other work, please cite references listed in the [suggested citation](#suggested-citation) section below.<br/>
 
 GFM portal is quite intuitive but if you want a quick tutorial of how to use it, check out the usage [instructions](/instructions). Few examples of flood events around the globe can be found in [link](/examples).<br/>
 
@@ -25,11 +28,14 @@ Feel free to tweak parameters in the script as per your need or repurpose it to 
 
 ## Suggested citation:
 
-Agarwal, A. and Tripathy, P. Global Flood Mapper v2: Flood Impact Assessment Using Sentinel-1 SAR on Google Earth Engine. (manuscript in review)<br/>
+Aggarwal, A. and Tripathy, P. Global Flood Mapper v2: Open-Access Flood Mapping and Exposure Assessment with Sentinel-1 SAR. (manuscript in review). EarthArXiv Preprint: https://doi.org/10.31223/X54482<br/>
 
-Tripathy, P. & Malladi, T. (2022). Global Flood Mapper: a novel Google Earth Engine application for rapid flood mapping using Sentinel-1 SAR. _Natural Hazards_. https://doi.org/10.1007/s11069-022-05428-2<br/>
+Tripathy, P., & Malladi, T. (2022). Global Flood Mapper: a novel Google Earth Engine application for rapid flood mapping using Sentinel-1 SAR. _Natural Hazards_, 114(2), 1341-1363. https://doi.org/10.1007/s11069-022-05428-2<br/>
 
-Tripathy, P. and Malladi, T. (2021). Global Flood Mapper: Democratising open EO resources for flood mapping. _EGU General Assembly 2021_, online, 19–30 Apr 2021, EGU21-16194, https://doi.org/10.5194/egusphere-egu21-16194<br/>
+Aggarwal, A. and Tripathy, P. (2026). Global Flood Mapper v2 [Software]. Zenodo. https://doi.org/10.5281/zenodo.23585198<br/>
 
 **Affiliation**<br/>
 Department of Geography, University of California, Santa Barbara, CA 93106, USA.<br/>
+
+## Funding:
+Pratyush Tripathy was supported by National Aeronautics and Space Administration (NASA) under Grant No. 80NSSC25K0392 issued through their Future Investigators in NASA Earth and Space Science and Technology (FINESST) program.<br/>
