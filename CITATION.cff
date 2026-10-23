@@ -1,0 +1,9 @@
+cff-version: 1.1.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: Tripathy
+  given-names: Pratyush
+orcid: https://orcid.org/0000-0002-9278-8995
+title:PratyushTripathy/global_flood_mapper: Global Flood Mapper v2
+version: v2.0.0
+date-released: 2026-10-23
