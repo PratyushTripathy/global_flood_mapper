@@ -18,7 +18,7 @@ The GIF below shows the GFM flood impact assessment portal: <br/>
 <strong>Note:</strong> If GFM does not load on your browser, please consider using Google Chrome.<br/>
 
 ## Access GFM app | no login required [using this URL](https://ptripathy.users.earthengine.app/view/global-flood-mapper-v2)
-The GFM allows the user to quickly create high-precision flood maps by simply selecting the area of interest from the dropwown menu and selecting the dates for before and during floods. The flood map can be directly downloaded from the GFM either in PNG or KML format. The advanced options in the GFM enable the user to tweak parameters that influence the flood map. For instance, choosing between ascending/descending pass, the threshold for Z-value for VV and VH bands, water seasonality threshold, and the elevation and slope mask threshold.
+The GFM allows the user to quickly create high-precision flood maps by simply selecting the area of interest from the dropdown menu and selecting the dates for before and during floods. The flood map can be directly downloaded from the GFM as a GeoTIFF (classified raster for analysis), a set of shapefiles (one per class), or a PNG (quick-look image); see the [instructions](instructions/README.md) for details. The advanced options in the GFM enable the user to tweak parameters that influence the flood map. For instance, choosing between ascending/descending pass, the threshold for Z-value for VV and VH bands, water seasonality threshold, and the elevation and slope mask threshold.
 
 ## Add GFM repository to your GEE scripts
 You can accesss the entire source code of GFM and export flood maps at higher resolution directly via GEE code editor. Use the link below to add GFM to your GEE scripts:<br/>
@@ -28,11 +28,11 @@ Feel free to tweak parameters in the script as per your need or repurpose it to 
 
 ## Suggested citation:
 
-Aggarwal, A. and Tripathy, P. Global Flood Mapper v2: Open-Access Flood Mapping and Exposure Assessment with Sentinel-1 SAR. (manuscript in review). EarthArXiv Preprint: https://doi.org/10.31223/X54482<br/>
+Agrawal, A. and Tripathy, P. Global Flood Mapper v2: Open-Access Flood Mapping and Exposure Assessment with Sentinel-1 SAR. (manuscript in review). EarthArXiv Preprint: https://doi.org/10.31223/X54482<br/>
 
 Tripathy, P., & Malladi, T. (2022). Global Flood Mapper: a novel Google Earth Engine application for rapid flood mapping using Sentinel-1 SAR. _Natural Hazards_, 114(2), 1341-1363. https://doi.org/10.1007/s11069-022-05428-2<br/>
 
-Aggarwal, A. and Tripathy, P. (2026). Global Flood Mapper v2 [Software]. Zenodo. https://doi.org/10.5281/zenodo.23585198<br/>
+Agrawal, A. and Tripathy, P. (2026). Global Flood Mapper v2 [Software]. Zenodo. https://doi.org/10.5281/zenodo.23585198<br/>
 
 **Affiliation**<br/>
 Department of Geography, University of California, Santa Barbara, CA 93106, USA.<br/>
